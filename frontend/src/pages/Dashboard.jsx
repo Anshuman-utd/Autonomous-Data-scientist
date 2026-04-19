@@ -89,6 +89,17 @@ export default function Dashboard() {
       
       <OutliersSection outliers={edaData.outliers} />
 
+      {/* Phase 3: Proceed to Model Training CTA */}
+      <div className="mt-12 flex justify-center">
+        <button
+          onClick={() => navigate(`/train?filename=${filename}`)}
+          className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-primary to-secondary font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary hover:scale-105 shadow-lg shadow-primary/30"
+        >
+          <Activity className="w-5 h-5 mr-3 group-hover:animate-pulse" />
+          Proceed to Model Training
+        </button>
+      </div>
+
     </div>
   );
 }

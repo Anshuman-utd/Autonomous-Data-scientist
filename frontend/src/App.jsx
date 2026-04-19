@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import UploadPage from './pages/Upload';
 import Dashboard from './pages/Dashboard';
+import ModelTraining from './pages/ModelTraining';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Routes>
             <Route path="/" element={<UploadPage />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/train" element={<ModelTraining />} />
           </Routes>
         </main>
       </div>
