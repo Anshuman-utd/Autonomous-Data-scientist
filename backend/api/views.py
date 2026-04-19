@@ -30,6 +30,8 @@ class UploadDatasetView(APIView):
             if "error" in result:
                 return Response({"error": result["error"]}, status=status.HTTP_400_BAD_REQUEST)
             
+            result["file_name"] = file_name
+            
             return Response(result, status=status.HTTP_200_OK)
             
         finally:
@@ -38,3 +40,24 @@ class UploadDatasetView(APIView):
             # But for Phase 1, the prompt says "Save it to the server". So we can optionally delete or keep.
             # We'll keep it for now as part of "Save it to the server" requirement.
             pass
+
+from .utils.eda import perform_eda
+
+class EDAView(APIView):
+    def get(self, request, *args, **kwargs):
+        file_name = request.query_params.get('filename')
+        
+        if not file_name:
+            return Response({"error": "No filename provided"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        file_path = default_storage.path(file_name)
+        
+        if not os.path.exists(file_path):
+            return Response({"error": "File not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        result = perform_eda(file_path)
+        
+        if "error" in result:
+            return Response({"error": result["error"]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        return Response(result, status=status.HTTP_200_OK)

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FileUpload from '../components/FileUpload';
 import DataPreview from '../components/DataPreview';
-import { Database, AlertCircle } from 'lucide-react';
+import { Database, AlertCircle, BarChart2 } from 'lucide-react';
 
 export default function UploadPage() {
   const [dataset, setDataset] = useState(null);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const handleUploadSuccess = (data) => {
     setError(null);
@@ -15,6 +17,12 @@ export default function UploadPage() {
   const handleUploadError = (err) => {
     setError(err);
     setDataset(null);
+  };
+
+  const goToDashboard = () => {
+    if (dataset && dataset.file_name) {
+      navigate(`/dashboard?filename=${dataset.file_name}`);
+    }
   };
 
   return (
@@ -40,6 +48,18 @@ export default function UploadPage() {
               <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start space-x-3">
                 <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-red-200">{error}</p>
+              </div>
+            )}
+            
+            {dataset && (
+              <div className="mt-8 pt-6 border-t border-slate-800">
+                <button 
+                  onClick={goToDashboard}
+                  className="w-full bg-secondary hover:bg-secondary/90 text-white py-4 rounded-xl flex justify-center items-center font-semibold tracking-wide transition-colors"
+                >
+                  <BarChart2 className="w-5 h-5 mr-2" />
+                  View EDA Dashboard
+                </button>
               </div>
             )}
           </div>
