@@ -10,7 +10,8 @@ import OutliersSection from '../components/OutliersSection';
 
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
-  const filename = searchParams.get('filename');
+  const dataset_id = searchParams.get('dataset_id');
+  const filename = searchParams.get('filename'); // Fallback purely for display if no DB yet
   const navigate = useNavigate();
 
   const [edaData, setEdaData] = useState(null);
@@ -18,7 +19,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!filename) {
+    if (!dataset_id && !filename) {
       setError("No dataset specified. Please go back and upload a dataset.");
       setLoading(false);
       return;
@@ -26,7 +27,8 @@ export default function Dashboard() {
 
     const fetchEda = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/eda?filename=${filename}`);
+        const urlParams = dataset_id ? `dataset_id=${dataset_id}` : `filename=${filename}`;
+        const response = await axios.get(`http://localhost:8000/api/eda?${urlParams}`);
         setEdaData(response.data);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to load EDA data.");
@@ -36,7 +38,7 @@ export default function Dashboard() {
     };
 
     fetchEda();
-  }, [filename]);
+  }, [dataset_id, filename]);
 
   if (loading) {
     return (
@@ -90,13 +92,20 @@ export default function Dashboard() {
       <OutliersSection outliers={edaData.outliers} />
 
       {/* Phase 3: Proceed to Model Training CTA */}
-      <div className="mt-12 flex justify-center">
+      <div className="mt-12 flex justify-center space-x-4">
         <button
-          onClick={() => navigate(`/train?filename=${filename}`)}
+          onClick={() => navigate(`/train?dataset_id=${dataset_id}`)}
           className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-primary to-secondary font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary hover:scale-105 shadow-lg shadow-primary/30"
         >
           <Activity className="w-5 h-5 mr-3 group-hover:animate-pulse" />
           Proceed to Model Training
+        </button>
+
+        <button
+          onClick={() => navigate(`/chat?dataset_id=${dataset_id}`)}
+          className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-slate-200 transition-all duration-200 bg-slate-800 border border-slate-700 font-pj rounded-xl hover:bg-slate-700 focus:ring-2 focus:ring-slate-600 shadow-lg"
+        >
+          Chat with Dataset (AI)
         </button>
       </div>
 

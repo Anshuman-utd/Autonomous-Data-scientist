@@ -6,7 +6,8 @@ import ModelComparisonTable from '../components/ModelComparisonTable';
 
 export default function ModelTraining() {
   const [searchParams] = useSearchParams();
-  const filename = searchParams.get('filename');
+  const dataset_id = searchParams.get('dataset_id');
+  const filename = searchParams.get('filename'); // Fallback purely for display if no DB yet
   const navigate = useNavigate();
 
   const [columns, setColumns] = useState([]);
@@ -18,7 +19,7 @@ export default function ModelTraining() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!filename) {
+    if (!dataset_id && !filename) {
       setError("No dataset specified. Please go back and upload a dataset.");
       setFetchingCols(false);
       return;
@@ -26,7 +27,8 @@ export default function ModelTraining() {
 
     const fetchColumns = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/eda?filename=${filename}`);
+        const urlParams = dataset_id ? `dataset_id=${dataset_id}` : `filename=${filename}`;
+        const response = await axios.get(`http://localhost:8000/api/eda?${urlParams}`);
         if (response.data.columns) {
           setColumns(response.data.columns);
           // Set last column as default target
@@ -42,7 +44,7 @@ export default function ModelTraining() {
       }
     };
     fetchColumns();
-  }, [filename]);
+  }, [dataset_id, filename]);
 
   const handleTrain = async () => {
     setTraining(true);
@@ -51,7 +53,8 @@ export default function ModelTraining() {
     
     try {
       const response = await axios.post(`http://localhost:8000/api/train`, {
-        filename,
+        dataset_id: dataset_id || null,
+        filename: filename || null,
         target_column: targetColumn || null
       });
       setResults(response.data);
@@ -68,11 +71,11 @@ export default function ModelTraining() {
     }
   };
 
-  if (!filename) {
+  if (!dataset_id && !filename) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-        <h2 className="text-xl font-semibold text-red-200">{error}</h2>
+        <h2 className="text-xl font-semibold text-red-200">{error || "No dataset specified. Please go back and upload a dataset."}</h2>
         <button 
           onClick={() => navigate('/')} 
           className="mt-6 flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition"
