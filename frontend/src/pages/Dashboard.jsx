@@ -7,6 +7,7 @@ import MissingValuesChart from '../components/MissingValuesChart';
 import CorrelationHeatmap from '../components/CorrelationHeatmap';
 import DistributionCharts from '../components/DistributionCharts';
 import OutliersSection from '../components/OutliersSection';
+import CategoricalCharts from '../components/CategoricalCharts';
 
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
@@ -86,6 +87,7 @@ export default function Dashboard() {
       </div>
 
       <DistributionCharts distributions={edaData.distributions} />
+      <CategoricalCharts categorical={edaData.categorical_distributions} />
       
       <OutliersSection outliers={edaData.outliers} />
 

@@ -90,6 +90,14 @@ def perform_eda(file_path):
             "categorical_columns": len(df.select_dtypes(include=['object', 'category']).columns)
         }
 
+        # 7. Categorical Distributions
+        categorical_distributions = {}
+        categorical_df = df.select_dtypes(include=['object', 'category', 'bool'])
+        for col in categorical_df.columns:
+            counts = categorical_df[col].value_counts().head(10).to_dict() # Top 10 categories
+            cat_data = [{"category": str(k), "count": int(v)} for k, v in counts.items()]
+            categorical_distributions[col] = cat_data
+
         # Handle NaNs in pandas -> JSON
         import math
         def clean_nans(obj):
@@ -108,6 +116,7 @@ def perform_eda(file_path):
             "correlation": correlation,
             "outliers": outliers,
             "distributions": distributions,
+            "categorical_distributions": categorical_distributions,
             "columns": df.columns.tolist() # include columns list for UI
         })
 
