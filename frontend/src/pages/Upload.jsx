@@ -20,8 +20,12 @@ export default function UploadPage() {
   };
 
   const goToDashboard = () => {
-    if (dataset && dataset.file_name) {
-      navigate(`/dashboard?filename=${dataset.file_name}`);
+    if (dataset) {
+      if (dataset.dataset_id) {
+        navigate(`/dashboard?dataset_id=${dataset.dataset_id}`);
+      } else if (dataset.file_name) {
+        navigate(`/dashboard?filename=${dataset.file_name}`);
+      }
     }
   };
 
