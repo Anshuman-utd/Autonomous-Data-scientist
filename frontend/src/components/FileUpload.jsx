@@ -62,12 +62,10 @@ export default function FileUpload({ onUploadSuccess, onUploadError }) {
     formData.append('file', file);
 
     try {
-      // Typically backend runs on 8000
-      const response = await axios.post('http://localhost:8000/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Authorization header is set globally by AuthContext (axios.defaults).
+      // Do NOT pass a custom headers object here — it would override the Bearer token.
+      // Axios auto-sets multipart/form-data with the correct boundary for FormData.
+      const response = await axios.post('http://localhost:8000/api/upload', formData);
       
       onUploadSuccess(response.data);
     } catch (err) {

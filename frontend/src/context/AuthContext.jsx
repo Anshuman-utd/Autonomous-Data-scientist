@@ -13,11 +13,42 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem('access_token'));
     const navigate = useNavigate();
 
+    // ── Axios interceptors ─────────────────────────────────────────────────
+    useEffect(() => {
+        // Attach Bearer token to every request
+        const reqInterceptor = axios.interceptors.request.use((config) => {
+            const t = localStorage.getItem('access_token');
+            if (t) {
+                config.headers['Authorization'] = `Bearer ${t}`;
+            }
+            return config;
+        });
+
+        // Auto-logout on 401 (stale / invalid token)
+        const resInterceptor = axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    localStorage.removeItem('access_token');
+                    setToken(null);
+                    setUser(null);
+                    delete axios.defaults.headers.common['Authorization'];
+                    navigate('/login');
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        return () => {
+            axios.interceptors.request.eject(reqInterceptor);
+            axios.interceptors.response.eject(resInterceptor);
+        };
+    }, [navigate]);
+
     useEffect(() => {
         if (token) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            // Optional: verify token validity or fetch user details here
-            setUser({ token }); 
+            setUser({ token });
         } else {
             delete axios.defaults.headers.common['Authorization'];
             setUser(null);
