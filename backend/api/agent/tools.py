@@ -2,9 +2,27 @@ import json
 from langchain_core.tools import tool
 from api.models import Dataset, ModelRecord
 from api.utils.eda import perform_eda
+import pandas as pd
 
 # To properly isolate state per-invocation in LangChain and pass kwargs, we can rely on standard Python args,
 # but the agent will construct inputs. We will define simple string/dict based interfaces.
+
+@tool
+def get_dataset_schema(dataset_id: int) -> str:
+    """Useful to get the dataset's column names, data types, row count, and a small sample of the actual data."""
+    try:
+        dataset = Dataset.objects.get(id=dataset_id)
+        df = pd.read_csv(dataset.file.path)
+        
+        info = {
+            "total_rows": len(df),
+            "columns": df.columns.tolist(),
+            "data_types": df.dtypes.astype(str).to_dict(),
+            "sample_data": df.head(5).to_dict(orient='records')
+        }
+        return f"Dataset Schema & Sample Data: {json.dumps(info)}"
+    except Exception as e:
+        return f"Error analyzing dataset schema: {str(e)}"
 
 @tool
 def analyze_missing_values(dataset_id: int) -> str:

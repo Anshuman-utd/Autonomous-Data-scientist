@@ -8,6 +8,7 @@ import CorrelationHeatmap from '../components/CorrelationHeatmap';
 import DistributionCharts from '../components/DistributionCharts';
 import OutliersSection from '../components/OutliersSection';
 import CategoricalCharts from '../components/CategoricalCharts';
+import FloatingChat from '../components/FloatingChat';
 
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
@@ -102,14 +103,9 @@ export default function Dashboard() {
           <Activity className="w-5 h-5 mr-3 group-hover:animate-pulse" />
           Proceed to Model Training
         </button>
-
-        <button
-          onClick={() => navigate(`/chat?dataset_id=${dataset_id}`)}
-          className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-slate-200 transition-all duration-200 bg-slate-800 border border-slate-700 font-pj rounded-xl hover:bg-slate-700 focus:ring-2 focus:ring-slate-600 shadow-lg"
-        >
-          Chat with Dataset (AI)
-        </button>
       </div>
+
+      <FloatingChat dataset_id={dataset_id} />
 
     </div>
   );

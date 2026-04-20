@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Activity, ArrowLeft, AlertCircle, Play, Download, CheckCircle, Database, BarChart3 } from 'lucide-react';
 import ModelComparisonTable from '../components/ModelComparisonTable';
+import FloatingChat from '../components/FloatingChat';
 
 export default function ModelTraining() {
   const [searchParams] = useSearchParams();
@@ -232,6 +233,8 @@ export default function ModelTraining() {
 
         </div>
       )}
+
+      <FloatingChat dataset_id={dataset_id} />
     </div>
   );
 }

@@ -5,7 +5,6 @@ import UploadPage from './pages/Upload';
 import Dashboard from './pages/Dashboard';
 import ModelTraining from './pages/ModelTraining';
 import AuthPage from './pages/Auth';
-import ChatPage from './pages/Chat'; // We will create this next
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
@@ -45,7 +44,6 @@ function MainApp() {
           <Route path="/" element={<ProtectedRoute><UploadPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/train" element={<ProtectedRoute><ModelTraining /></ProtectedRoute>} />
-          <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         </Routes>
       </main>
     </div>
