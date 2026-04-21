@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_URL from '../config/api';
 import FileUpload from '../components/FileUpload';
 import DataPreview from '../components/DataPreview';
 import {
@@ -19,7 +20,7 @@ export default function UploadPage() {
   useEffect(() => {
     const fetchDatasets = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/datasets');
+        const res = await axios.get(`${API_URL}/api/datasets`);
         setMyDatasets(res.data.results || []);
       } catch {
         // Non-fatal — just hide the panel
@@ -34,7 +35,7 @@ export default function UploadPage() {
     setError(null);
     setDataset(data);
     // Refresh the datasets list after a new upload
-    axios.get('http://localhost:8000/api/datasets')
+    axios.get(`${API_URL}/api/datasets`)
       .then(r => setMyDatasets(r.data.results || []))
       .catch(() => {});
   };

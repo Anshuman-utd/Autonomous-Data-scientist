@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import API_URL from '../config/api';
 import { Bot, User, Send, Loader2, MessageSquare, X, Maximize, Minimize } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,7 +20,7 @@ export default function FloatingChat({ dataset_id }) {
         
         const fetchHistory = async () => {
             try {
-                const res = await axios.get(`http://localhost:8000/api/chat?dataset_id=${dataset_id}`);
+                const res = await axios.get(`${API_URL}/api/chat?dataset_id=${dataset_id}`);
                 const history = [];
                 res.data.forEach(exchange => {
                     history.push({ role: 'user', content: exchange.question });
@@ -54,7 +55,7 @@ export default function FloatingChat({ dataset_id }) {
         setLoading(true);
 
         try {
-            const res = await axios.post('http://localhost:8000/api/chat', {
+            const res = await axios.post(`${API_URL}/api/chat`, {
                 dataset_id,
                 question: userMsg.content
             });

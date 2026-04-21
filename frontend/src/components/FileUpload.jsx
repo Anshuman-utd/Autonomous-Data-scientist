@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, File, X, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 export default function FileUpload({ onUploadSuccess, onUploadError }) {
   const [dragActive, setDragActive] = useState(false);
@@ -65,7 +66,7 @@ export default function FileUpload({ onUploadSuccess, onUploadError }) {
       // Authorization header is set globally by AuthContext (axios.defaults).
       // Do NOT pass a custom headers object here — it would override the Bearer token.
       // Axios auto-sets multipart/form-data with the correct boundary for FormData.
-      const response = await axios.post('http://localhost:8000/api/upload', formData);
+      const response = await axios.post(`${API_URL}/api/upload`, formData);
       
       onUploadSuccess(response.data);
     } catch (err) {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import API_URL from '../config/api';
 import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext();
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const res = await axios.post('http://localhost:8000/api/login', { username, password });
+            const res = await axios.post(`${API_URL}/api/login`, { username, password });
             const accessToken = res.data.access;
             localStorage.setItem('access_token', accessToken);
             setToken(accessToken);
@@ -70,7 +71,7 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (username, password) => {
         try {
-            await axios.post('http://localhost:8000/api/register', { username, password });
+            await axios.post(`${API_URL}/api/register`, { username, password });
             return await login(username, password);
         } catch (error) {
             return { success: false, error: error.response?.data?.error || 'Registration failed' };

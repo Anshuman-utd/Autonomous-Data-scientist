@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_URL from '../config/api';
 import { Activity, ArrowLeft, AlertCircle, Play, Download, CheckCircle, Database, BarChart3 } from 'lucide-react';
 import ModelComparisonTable from '../components/ModelComparisonTable';
 import FloatingChat from '../components/FloatingChat';
@@ -29,7 +30,7 @@ export default function ModelTraining() {
     const fetchColumns = async () => {
       try {
         const urlParams = dataset_id ? `dataset_id=${dataset_id}` : `filename=${filename}`;
-        const response = await axios.get(`http://localhost:8000/api/eda?${urlParams}`);
+        const response = await axios.get(`${API_URL}/api/eda?${urlParams}`);
         if (response.data.columns) {
           setColumns(response.data.columns);
           // Set last column as default target
@@ -53,7 +54,7 @@ export default function ModelTraining() {
     setResults(null);
     
     try {
-      const response = await axios.post(`http://localhost:8000/api/train`, {
+      const response = await axios.post(`${API_URL}/api/train`, {
         dataset_id: dataset_id || null,
         filename: filename || null,
         target_column: targetColumn || null
@@ -68,7 +69,7 @@ export default function ModelTraining() {
 
   const handleDownloadModel = () => {
     if (results && results.model_download_url) {
-      window.open(`http://localhost:8000${results.model_download_url}`, '_blank');
+      window.open(`${API_URL}${results.model_download_url}`, '_blank');
     }
   };
 

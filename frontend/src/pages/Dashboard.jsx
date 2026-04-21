@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_URL from '../config/api';
 import { Activity, ArrowLeft, AlertCircle } from 'lucide-react';
 import OverviewCards from '../components/OverviewCards';
 import MissingValuesChart from '../components/MissingValuesChart';
@@ -30,7 +31,7 @@ export default function Dashboard() {
     const fetchEda = async () => {
       try {
         const urlParams = dataset_id ? `dataset_id=${dataset_id}` : `filename=${filename}`;
-        const response = await axios.get(`http://localhost:8000/api/eda?${urlParams}`);
+        const response = await axios.get(`${API_URL}/api/eda?${urlParams}`);
         setEdaData(response.data);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to load EDA data.");
