@@ -177,6 +177,28 @@ CORS_ALLOWED_ORIGINS = [
 # Also allow credentials (cookies / auth headers)
 CORS_ALLOW_CREDENTIALS = True
 
+# Explicitly allow the headers & methods needed for login/signup/upload
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
