@@ -12,11 +12,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .agent.workflow import process_chat_query
-from .ml.evaluate import evaluate_models
-from .ml.preprocess import preprocess_data
-from .ml.save_model import save_model
-from .ml.train import train_models
 from .models import ChatHistory, Dataset, ModelRecord
 from .serializers import ChatHistorySerializer, DatasetSerializer, ModelRecordSerializer
 from .utils.eda import perform_eda
@@ -205,6 +200,11 @@ class TrainModelView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
+        from .ml.train import train_models
+        from .ml.evaluate import evaluate_models
+        from .ml.preprocess import preprocess_data
+        from .ml.save_model import save_model
+
         dataset_id = request.data.get('dataset_id')
         target_col = request.data.get('target_column')
 
@@ -338,6 +338,7 @@ class ChatView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
+        from .agent.workflow import process_chat_query
         dataset_id = request.data.get('dataset_id')
         question = request.data.get('question')
 
