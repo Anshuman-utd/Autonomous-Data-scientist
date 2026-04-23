@@ -31,7 +31,7 @@ function MainApp() {
       <main className="relative z-10 flex-grow mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 md:py-16 w-full">
         <header className="mb-12 text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-accent inline-block pb-2">
-            Autonomous Data Scientist
+            Hilton AI - Autonomous Data Scientist
           </h1>
           <p className="mt-4 max-w-2xl text-lg text-slate-400 mx-auto">
             Upload your dataset to start automatic exploratory data analysis and generate intelligent insights.
