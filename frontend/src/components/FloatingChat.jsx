@@ -20,7 +20,10 @@ export default function FloatingChat({ dataset_id }) {
         
         const fetchHistory = async () => {
             try {
-                const res = await axios.get(`${API_URL}/api/chat?dataset_id=${dataset_id}`);
+                const config = {
+                    headers: { Authorization: `Bearer ${token}` }
+                };
+                const res = await axios.get(`${API_URL}/api/chat?dataset_id=${dataset_id}`, config);
                 const history = [];
                 res.data.forEach(exchange => {
                     history.push({ role: 'user', content: exchange.question });
@@ -55,10 +58,13 @@ export default function FloatingChat({ dataset_id }) {
         setLoading(true);
 
         try {
+            const config = {
+                headers: { Authorization: `Bearer ${token}` }
+            };
             const res = await axios.post(`${API_URL}/api/chat`, {
                 dataset_id,
                 question: userMsg.content
-            });
+            }, config);
             setMessages(prev => [...prev, { role: 'ai', content: res.data.answer }]);
         } catch (err) {
             setMessages(prev => [...prev, { role: 'ai', content: "I encountered an error analyzing your request. Please try again." }]);
