@@ -208,7 +208,6 @@ Chat:
 **Anshuman Mehta**
 
 GitHub: https://github.com/Anshuman-utd  
-LinkedIn: (Add your profile)
 
 ---
 
