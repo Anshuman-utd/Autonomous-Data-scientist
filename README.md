@@ -1,216 +1,202 @@
-# 🚀 Autonomous Data Scientist
+# Autonomous Data Scientist
 
-An AI-powered full-stack web application that automates the complete data science workflow — from dataset upload to model training, evaluation, and interactive insights using agentic AI.
-
----
-
-## 🧠 Overview
-
-**Autonomous Data Scientist** simulates the role of a data scientist by enabling users to:
-
-- Upload datasets (CSV)
-- Perform Exploratory Data Analysis (EDA)
-- Train Machine Learning models
-- Evaluate and download trained models
-- Interact with datasets using AI-powered chat
-- Manage datasets and models securely with authentication
+An AI-powered full-stack web application that automates the complete data science workflow, including dataset upload, exploratory data analysis, machine learning model training, evaluation, and interactive conversational insights using agentic AI.
 
 ---
 
-## ✨ Features
+## Overview
 
-### 🔐 Authentication
-- User registration & login  
-- JWT-based authentication  
-- User-specific data isolation  
+Autonomous Data Scientist simulates the capabilities of a junior data scientist. The application automates technical workflows to enable users to:
 
-### 📂 Dataset Management
-- Upload CSV datasets  
-- Automatic schema detection  
-- Data preview & metadata storage  
-- Resume previously uploaded datasets  
-
-### 📊 Exploratory Data Analysis (EDA)
-- Column insights and summaries  
-- Data previews  
-- Statistical analysis  
-- Automated insights  
-
-### 🤖 Machine Learning Pipeline
-- Automatic preprocessing  
-- Model training (classification/regression)  
-- Model evaluation and comparison  
-- Best model selection  
-- Download trained models (.pkl)  
-
-### 💬 AI Chat (Agentic AI)
-- Ask questions about your dataset  
-- Context-aware responses  
-- Maintains chat history  
-- Powered by LLM + LangChain + LangGraph  
-
-### 💾 Data Persistence
-- User-specific datasets and models  
-- Stored in PostgreSQL database  
+* Upload and validate datasets (CSV format)
+* Perform automated Exploratory Data Analysis (EDA) with statistical insights
+* Execute machine learning model training pipelines for classification and regression tasks
+* Evaluate model metrics and download serialized models (pickle format)
+* Query datasets and retrieve correlation summaries through a conversational AI assistant
+* Securely manage workspace resources with token-based authentication
 
 ---
 
-## 🛠️ Tech Stack
+## Features
 
-Frontend:
-- React (Vite)
-- Tailwind CSS
+### Authentication and Access Control
+* Token-based user authentication (JSON Web Tokens)
+* Secure registration and login workflows
+* Strict user-specific data isolation to protect workspace integrity
 
-Backend:
-- Django
-- Django REST Framework
-- JWT Authentication
+### Dataset Management
+* CSV dataset ingestion and validation
+* Automatic schema detection and data preview parsing
+* Persistent storage of dataset records and calculations
+* Workspace recovery for previously uploaded files
 
-AI / ML:
-- Scikit-learn
-- Pandas, NumPy
-- LangChain
-- LangGraph
-- OpenAI / Groq APIs
+### Automated Exploratory Data Analysis (EDA)
+* Column-level summary statistics and null-value checking
+* Distribution calculations for numerical and categorical variables
+* Correlation matrices and multi-variable comparison tables
+* Automated outlier detection and visualization maps
 
-Database:
-- PostgreSQL (Neon / Prisma)
+### Machine Learning Pipeline
+* Automatic preprocessing (imputation of missing values, vector scaling)
+* Automated split for training and testing subsets
+* Multi-model training and evaluation (Random Forest, LightGBM, Logistic Regression)
+* Leaderboard comparison based on evaluation scores (Accuracy, R2 score, RMSE)
+* Serialization and direct download of the best performing model (.pkl)
 
-Deployment:
-- Frontend: Vercel  
-- Backend: Render  
+### Conversational AI Analyst
+* Context-aware conversational assistant trained to query active dataset metrics
+* Ability to request schemas, summary statistics, or correlation details
+* Structured code-block output formatting with click-to-copy utility
+* Pipeline integration powered by LangChain and LangGraph workflows
+
+### Persistence
+* Persistent relational database engine storing user metadata and dataset configurations
+* Multi-layered storage for datasets and trained model files
 
 ---
 
-## ⚙️ Environment Variables
+## Tech Stack
 
-Create `.env` files for backend and frontend:
+### Frontend
+* React (Vite environment)
+* Tailwind CSS for interface styling
+* Recharts for reactive visualization rendering
 
-Backend `.env`:
+### Backend
+* Django
+* Django REST Framework (DRF)
+* SimpleJWT for token authentication management
+
+### Machine Learning and AI
+* Scikit-learn for model training and evaluation
+* Pandas and NumPy for vector analytics
+* LangChain / LangGraph for agent orchestration
+* Integration with enterprise LLM provider APIs (Groq, OpenAI)
+
+### Database
+* PostgreSQL (Production database engine)
+* SQLite (Development/local testing database engine)
+
+---
+
+## Environment Configuration
+
+Configure environment variables in the respective application root folders.
+
+### Backend Configurations
+Create a `.env` file inside the `backend/` directory:
 ```env
 DEBUG=False
-SECRET_KEY=your_secret_key
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+SECRET_KEY=your_production_secret_key
+DATABASE_URL=postgresql://user:password@host:port/dbname
 GROQ_API_KEY=your_api_key
 CORS_ALLOWED_ORIGINS=http://localhost:5173,https://your-frontend.vercel.app
 ```
 
-Frontend `.env`:
+### Frontend Configurations
+Create a `.env` file inside the `frontend/` directory:
 ```env
-VITE_API_URL=https://your-backend.onrender.com
+VITE_API_URL=https://your-backend-url.com
 ```
 
 ---
 
-## 🚀 Installation & Setup
+## Installation and Setup
 
+Ensure you have Python 3.9+ and Node.js 18+ installed on your system.
+
+### 1. Backend Service Setup
 ```bash
-# Clone repository
-git clone https://github.com/your-username/Autonomous-Data-scientist.git
-cd Autonomous-Data-scientist
-
-# Backend setup
+# Navigate to the backend directory
 cd backend
+
+# Create a virtual environment
 python -m venv venv
 
-# Activate virtual environment
+# Activate the virtual environment
 # macOS/Linux:
 source venv/bin/activate
 # Windows:
 venv\Scripts\activate
 
+# Install system dependencies
 pip install -r requirements.txt
 
-# Run migrations
+# Run database migrations
 python manage.py migrate
 
-# Start backend server
-python manage.py runserver
+# Run system checks
+python manage.py check
 
-# Frontend setup (open new terminal)
+# Start development server
+python manage.py runserver
+```
+
+### 2. Frontend Application Setup
+```bash
+# Open a new terminal session and navigate to the frontend directory
 cd frontend
+
+# Install packages
 npm install
+
+# Run Vite dev server
 npm run dev
 ```
+The application will launch on `http://localhost:5173`.
 
 ---
 
-## 🌐 Deployment
+## Deployment Architecture
 
+### Backend Deployment (e.g., Render, Heroku)
+Run migrations and launch the WSGI wrapper using Gunicorn:
 ```bash
-# Backend (Render)
+python manage.py migrate
 gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
-
-# Frontend (Vercel)
-# Set environment variable:
-VITE_API_URL=https://your-backend-url
 ```
 
----
-
-## 📡 API Endpoints
-
-Authentication:
-- POST /api/register
-- POST /api/login
-
-Dataset:
-- POST /api/upload
-- GET /api/datasets
-
-EDA:
-- GET /api/eda?dataset_id=<id>
-
-Model:
-- POST /api/train
-- GET /api/models
-- GET /api/download-model?model_id=<id>
-
-Chat:
-- POST /api/chat
-- GET /api/chat?dataset_id=<id>
+### Frontend Deployment (e.g., Vercel, Netlify)
+Ensure the environment variable is configured during the build stage:
+* Key: `VITE_API_URL`
+* Value: Path to your hosted backend API URL
 
 ---
 
-## 🔥 Key Highlights
+## API Endpoints Reference
 
-- Full-stack AI + ML application  
-- Implements Agentic AI workflows  
-- Real-world deployment architecture  
-- Scalable backend design  
-- Database + file storage integration  
-- Interactive AI-powered analytics  
+### Authentication
+* `POST /api/register` - Create a new user account
+* `POST /api/login` - Authenticate credentials and retrieve JWT tokens
 
----
+### Dataset Operations
+* `POST /api/upload` - Upload and analyze a new CSV dataset
+* `GET /api/datasets` - Retrieve all datasets belonging to the active user
 
-## ⚠️ Challenges & Learnings
+### Analytical Reporting
+* `GET /api/eda?dataset_id=<id>` - Retrieve exploratory data analysis report
 
-- Handling ML workloads in production  
-- Optimizing backend startup (lazy loading)  
-- Managing CORS and API communication  
-- Deploying ML apps on cloud platforms  
-- Secure environment variable management  
+### Model Training
+* `POST /api/train` - Initiate autonomous ML pipeline for a target column
+* `GET /api/models` - List trained models for a specific dataset
+* `GET /api/download-model?model_id=<id>` - Download serialized model pickle
 
----
-
-## 🚀 Future Improvements
-
-- Background job processing (Celery / queues)  
-- Cloud storage integration (AWS S3)  
-- Model versioning  
-- Real-time dashboards  
-- Multi-user collaboration  
+### Interactive Chat Agent
+* `POST /api/chat` - Send a question to the conversational dataset analyst
+* `GET /api/chat?dataset_id=<id>` - Retrieve chat message history
 
 ---
 
-## 👨‍💻 Author
+## Architectural Highlights
 
-**Anshuman Mehta**
-
-GitHub: https://github.com/Anshuman-utd  
+* **User Data Separation**: Resource access queries are strictly checked against the authenticated request user model.
+* **Component-Level Styling**: Layout designs are standardized using reusable sub-components to align structural widths, borders, and margins.
+* **Robust File Streaming**: Model serialization downloads stream files directly via an authorized Axios binary blob request to preserve token authorization headers.
+* **Isolated Scroll Containers**: Scroll interactions on specialized workspaces use local element references to avoid shifting global layout boundaries or polluting window viewport scrolls.
 
 ---
 
-## ⭐ Support
+## Author
 
-If you like this project, consider giving it a star ⭐
+Anshuman Mehta  
+GitHub: [Anshuman-utd](https://github.com/Anshuman-utd)
