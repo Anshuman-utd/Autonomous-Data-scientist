@@ -198,5 +198,6 @@ Ensure the environment variable is configured during the build stage:
 
 ## Author
 
-Anshuman Mehta  
+Anshuman Mehta, Shourya Pratap
 GitHub: [Anshuman-utd](https://github.com/Anshuman-utd)
+GitHub: [shouryapratap132006](https://github.com/shouryapratap132006)
