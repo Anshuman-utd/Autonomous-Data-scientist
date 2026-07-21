@@ -70,6 +70,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # ✅ MUST BE FIRST
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -206,3 +207,22 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # ── Static files (whitenoise for Render) ────────────────────────────────────
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ── Password Hashers for Local Development Speed ────────────────────────────
+if DEBUG:
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
+
+# ── Custom Authentication Backends ──────────────────────────────────────────
+AUTHENTICATION_BACKENDS = [
+    'api.auth.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# ── Expose CORS Headers for Model Downloads ─────────────────────────────────
+CORS_EXPOSE_HEADERS = [
+    'content-disposition',
+]
+
+

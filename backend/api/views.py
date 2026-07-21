@@ -1,6 +1,5 @@
 import os
 
-import pandas as pd
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.base import File
@@ -14,8 +13,6 @@ from rest_framework.views import APIView
 
 from .models import ChatHistory, Dataset, ModelRecord
 from .serializers import ChatHistorySerializer, DatasetSerializer, ModelRecordSerializer
-from .utils.eda import perform_eda
-from .utils.file_handler import process_csv_file
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -32,24 +29,45 @@ class StandardResultsPagination(PageNumberPagination):
 # Auth
 # ──────────────────────────────────────────────────────────────────────────────
 
+from .auth import EmailTokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+class EmailTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailTokenObtainPairSerializer
+
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
+        full_name = request.data.get('full_name')
+        email = request.data.get('email')
         password = request.data.get('password')
-        if not username or not password:
+        confirm_password = request.data.get('confirm_password')
+
+        if not full_name or not email or not password or not confirm_password:
             return Response(
-                {"error": "Username and password are required."},
+                {"error": "All fields (full_name, email, password, confirm_password) are required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if User.objects.filter(username=username).exists():
+
+        if password != confirm_password:
             return Response(
-                {"error": "Username already exists."},
+                {"error": "Passwords do not match."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        User.objects.create_user(username=username, password=password)
+
+        # Check if email is already registered (either in email or username field)
+        if User.objects.filter(email__iexact=email).exists() or User.objects.filter(username__iexact=email).exists():
+            return Response(
+                {"error": "An account with this email already exists."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Store email as both username and email to ensure database uniqueness
+        User.objects.create_user(username=email, email=email, password=password, first_name=full_name)
         return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -82,17 +100,36 @@ class UploadDatasetView(APIView):
         # so the frontend can seamlessly resume working on it.
         existing = Dataset.objects.filter(user=request.user, name=dataset_name).first()
         if existing:
-            from .utils.file_handler import process_csv_file as _pcf
-            try:
-                preview_result = _pcf(existing.file.path)
-            except Exception:
-                preview_result = {}
+            # Check metadata cache first
+            columns = []
+            preview = []
+            if existing.metadata:
+                columns = existing.metadata.get("columns", [])
+                preview = existing.metadata.get("preview", [])
+            
+            # If metadata does not contain columns/preview (legacy record), fetch via file handler
+            if not columns or not preview:
+                from .utils.file_handler import process_csv_file as _pcf
+                try:
+                    preview_result = _pcf(existing.file.path)
+                    columns = preview_result.get("columns", [])
+                    preview = preview_result.get("preview", [])
+                    # Store back to DB
+                    existing.metadata = {
+                        "columns": columns,
+                        "preview": preview,
+                        "eda_report": existing.metadata.get("eda_report") if existing.metadata else None
+                    }
+                    existing.save(update_fields=['metadata'])
+                except Exception:
+                    pass
+
             return Response({
                 "resumed": True,
                 "dataset_id": existing.id,
                 "file_name": os.path.basename(existing.file.name),
-                "columns": preview_result.get("columns", existing.metadata.get("columns", []) if existing.metadata else []),
-                "preview": preview_result.get("preview", []),
+                "columns": columns,
+                "preview": preview,
                 "message": f"Loaded your existing dataset '{dataset_name}'.",
             }, status=status.HTTP_200_OK)
 
@@ -104,6 +141,7 @@ class UploadDatasetView(APIView):
         )
 
         try:
+            from .utils.file_handler import process_csv_file
             result = process_csv_file(dataset.file.path)
 
             if "error" in result:
@@ -114,7 +152,11 @@ class UploadDatasetView(APIView):
             result["dataset_id"] = dataset.id
 
             # Persist EDA metadata to the DB record
-            dataset.metadata = {"columns": result.get("columns", [])}
+            dataset.metadata = {
+                "columns": result.get("columns", []),
+                "preview": result.get("preview", []),
+                "eda_report": None
+            }
             dataset.save()
 
             return Response(result, status=status.HTTP_200_OK)
@@ -132,11 +174,75 @@ class UserDatasetsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        qs = Dataset.objects.filter(user=request.user)
+        qs = Dataset.objects.filter(user=request.user).select_related('user')
         paginator = StandardResultsPagination()
         page = paginator.paginate_queryset(qs, request)
         serializer = DatasetSerializer(page, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
+
+
+class DatasetDetailView(APIView):
+    """
+    DELETE /api/datasets/<id>  - Delete a dataset and its physical file.
+    POST   /api/datasets/<id>/duplicate - Duplicate a dataset and its physical file.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            dataset = Dataset.objects.get(id=pk, user=request.user)
+            if dataset.file and os.path.exists(dataset.file.path):
+                try:
+                    os.remove(dataset.file.path)
+                except OSError:
+                    pass
+            dataset.delete()
+            return Response({"message": "Dataset deleted successfully."}, status=status.HTTP_200_OK)
+        except Dataset.DoesNotExist:
+            return Response({"error": "Dataset not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            dataset = Dataset.objects.get(id=pk, user=request.user)
+            original_path = dataset.file.path
+            if not os.path.exists(original_path):
+                return Response({"error": "Original file not found on disk."}, status=status.HTTP_404_NOT_FOUND)
+
+            filename, ext = os.path.splitext(os.path.basename(original_path))
+            dup_name = f"{dataset.name} (Copy)"
+            dup_filename = f"{filename}_copy{ext}"
+
+            suffix = 1
+            while Dataset.objects.filter(user=request.user, name=dup_name).exists():
+                dup_name = f"{dataset.name} (Copy {suffix})"
+                dup_filename = f"{filename}_copy_{suffix}{ext}"
+                suffix += 1
+
+            dup_path = os.path.join(os.path.dirname(original_path), dup_filename)
+
+            import shutil
+            shutil.copy2(original_path, dup_path)
+
+            from django.core.files.base import ContentFile
+            new_dataset = Dataset.objects.create(
+                user=request.user,
+                name=dup_name,
+                metadata=dataset.metadata
+            )
+            
+            with open(dup_path, 'rb') as f:
+                new_dataset.file.save(dup_filename, ContentFile(f.read()), save=True)
+
+            return Response({
+                "message": "Dataset duplicated successfully.",
+                "id": new_dataset.id,
+                "name": new_dataset.name
+            }, status=status.HTTP_201_CREATED)
+        except Dataset.DoesNotExist:
+            return Response({"error": "Dataset not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -180,9 +286,20 @@ class EDAView(APIView):
         if not os.path.exists(file_path):
             return Response({"error": "File not found on disk."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Check DB cache first
+        if dataset.metadata and dataset.metadata.get("eda_report"):
+            return Response(dataset.metadata["eda_report"], status=status.HTTP_200_OK)
+
+        from .utils.eda import perform_eda
         result = perform_eda(file_path)
         if "error" in result:
             return Response({"error": result["error"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Cache in DB
+        if not dataset.metadata:
+            dataset.metadata = {}
+        dataset.metadata["eda_report"] = result
+        dataset.save(update_fields=['metadata'])
 
         return Response(result, status=status.HTTP_200_OK)
 
@@ -226,6 +343,7 @@ class TrainModelView(APIView):
             return Response({"error": "File not found on disk."}, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            import pandas as pd
             df = pd.read_csv(file_path)
 
             # Preprocess
@@ -245,10 +363,10 @@ class TrainModelView(APIView):
             # Save model .pkl to disk
             dataset_stem = os.path.basename(dataset.file.name).rsplit('.', 1)[0]
             model_filename = f"model_{dataset.id}_{dataset_stem}.pkl"
-            saved_path = save_model(best_model, model_filename)       # returns absolute path
+            saved_path = save_model(best_model, model_filename)       # returns relative path
 
             # Attach .pkl to ModelRecord via Django FileField
-            relative_path = os.path.relpath(saved_path, settings.MEDIA_ROOT)
+            relative_path = saved_path                                 # already relative
             model_record = ModelRecord.objects.create(
                 user=request.user,
                 dataset=dataset,
@@ -281,7 +399,7 @@ class UserModelsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        qs = ModelRecord.objects.filter(user=request.user).select_related('dataset')
+        qs = ModelRecord.objects.filter(user=request.user).select_related('user', 'dataset')
 
         # Optional filter by dataset
         dataset_id = request.query_params.get('dataset_id')

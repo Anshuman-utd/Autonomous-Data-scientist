@@ -10,13 +10,19 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
     const [token, setToken] = useState(localStorage.getItem('access_token'));
+    const [user, setUser] = useState(() => {
+        try {
+            const saved = localStorage.getItem('user');
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
     const navigate = useNavigate();
 
     // ── Axios interceptors ─────────────────────────────────────────────────
     useEffect(() => {
-        // Attach Bearer token to every request
         const reqInterceptor = axios.interceptors.request.use((config) => {
             const t = localStorage.getItem('access_token');
             if (t) {
@@ -25,12 +31,12 @@ export const AuthProvider = ({ children }) => {
             return config;
         });
 
-        // Auto-logout on 401 (stale / invalid token)
         const resInterceptor = axios.interceptors.response.use(
             (response) => response,
             (error) => {
                 if (error.response?.status === 401) {
                     localStorage.removeItem('access_token');
+                    localStorage.removeItem('user');
                     setToken(null);
                     setUser(null);
                     delete axios.defaults.headers.common['Authorization'];
@@ -49,43 +55,61 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         if (token) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            setUser({ token });
         } else {
             delete axios.defaults.headers.common['Authorization'];
-            setUser(null);
         }
     }, [token]);
 
-    const login = async (username, password) => {
+    const login = async (email, password) => {
         try {
-            const res = await axios.post(`${API_URL}/api/login`, { username, password });
+            const res = await axios.post(`${API_URL}/api/login`, { email, password });
             const accessToken = res.data.access;
             localStorage.setItem('access_token', accessToken);
+            
+            const userData = {
+                id: res.data.user?.id,
+                email: res.data.user?.email || email,
+                full_name: res.data.user?.full_name || '',
+            };
+            localStorage.setItem('user', JSON.stringify(userData));
+            
             setToken(accessToken);
+            setUser(userData);
             navigate('/');
             return { success: true };
         } catch (error) {
-            return { success: false, error: 'Invalid credentials' };
+            const detail = error.response?.data?.detail || 'Invalid email or password';
+            return { success: false, error: detail };
         }
     };
 
-    const register = async (username, password) => {
+    const register = async (full_name, email, password, confirm_password) => {
         try {
-            await axios.post(`${API_URL}/api/register`, { username, password });
-            return await login(username, password);
+            await axios.post(`${API_URL}/api/register`, { 
+                full_name, 
+                email, 
+                password, 
+                confirm_password 
+            });
+            return await login(email, password);
         } catch (error) {
-            return { success: false, error: error.response?.data?.error || 'Registration failed' };
+            return { 
+                success: false, 
+                error: error.response?.data?.error || 'Registration failed. Please check your credentials.' 
+            };
         }
     };
 
     const logout = () => {
         localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
         setToken(null);
+        setUser(null);
         navigate('/login');
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, token }}>
+        <AuthContext.Provider value={{ user, token, login, register, logout }}>
             {children}
         </AuthContext.Provider>
     );
