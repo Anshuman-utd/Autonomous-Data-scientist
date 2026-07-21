@@ -32,10 +32,8 @@ def preprocess_data(df, target_col=None):
     problem_type = detect_problem_type(df, target_col)
     
     # Separation X and y
-    X = df.drop(columns=[target_col]).copy()
     y = df[target_col].copy()
-    
-    X_processed = X.copy()
+    X_processed = df.drop(columns=[target_col]).copy()
     
     # 1. Identify Numerical and Categorical columns in X
     numeric_cols = X_processed.select_dtypes(include=['int64', 'float64']).columns

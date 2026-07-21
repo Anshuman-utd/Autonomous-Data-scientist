@@ -1,14 +1,13 @@
-import pandas as pd
 import os
 
 def process_csv_file(file_path):
     """
     Reads a CSV file, extracts its columns and first 5 rows (preview).
     """
+    import pandas as pd
     try:
-        # We can read the file directly since pandas can read from file paths
-        # If the file is extremely large, might need to stream, but for Phase 1 we read directly.
-        df = pd.read_csv(file_path)
+        # Read only the first 5 rows for columns and preview to optimize memory and speed
+        df = pd.read_csv(file_path, nrows=5)
         
         # Check if empty
         if df.empty:
@@ -29,3 +28,4 @@ def process_csv_file(file_path):
         return {"error": "The uploaded CSV file is empty or invalid."}
     except Exception as e:
         return {"error": f"Error processing file: {str(e)}"}
+

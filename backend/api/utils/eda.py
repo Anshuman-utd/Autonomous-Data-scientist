@@ -1,7 +1,6 @@
-import pandas as pd
-import numpy as np
-
 def perform_eda(file_path):
+    import pandas as pd
+    import numpy as np
     """
     Reads a CSV file and performs EDA.
     Returns: missing_values, stats, correlation, outliers, distributions

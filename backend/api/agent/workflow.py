@@ -1,7 +1,7 @@
 import os
 from typing import TypedDict, Annotated, Sequence
 import operator
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
@@ -36,12 +36,18 @@ def call_model(state):
         if GROQ_API_KEY == "dummy_key_replace_me":
              return {"messages": [AIMessage(content="Groq API Key is missing. I cannot process this dataset yet. Setup your GROQ_API_KEY in backend environment.")]}
              
-        model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, groq_api_key=GROQ_API_KEY)
+        model = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            temperature=0,
+            groq_api_key=GROQ_API_KEY,
+            timeout=15,
+            max_retries=2
+        )
         model_with_tools = model.bind_tools(tools)
         
         # Inject dataset_id into the system context indirectly
         # It's better to force the tools to use the dataset_id explicitly by appending it to human prompt context if necessary
-        # However, for simplicity here, we assume the user query is passed directly from Django view with "Dataset ID: X \\n Question: Y"
+        # However, for simplicity here, we assume the user query is passed directly from Django view with "Dataset ID: X \n Question: Y"
         response = model_with_tools.invoke(messages)
         return {"messages": [response]}
     except Exception as e:
@@ -72,25 +78,26 @@ def process_chat_query(dataset_id: int, user_query: str, history: list = None) -
     if not history:
         history = []
         
-    messages = []
-    for h in history:
-        messages.append(HumanMessage(content=h['question']))
-        messages.append(AIMessage(content=h['answer']))
-        
+    system_instruction = ""
     try:
         dataset = Dataset.objects.get(id=dataset_id)
         filename = os.path.basename(dataset.file.name)
         columns = dataset.metadata.get("columns", []) if dataset.metadata else "Unknown"
         
-        context_hook = f"""[System instruction: You are an expert Autonomous Data Scientist AI Assistant analyzing the dataset '{filename}' (Internal ID: {dataset_id}).
+        system_instruction = f"""You are an expert Autonomous Data Scientist AI Assistant analyzing the dataset '{filename}' (Internal ID: {dataset_id}).
 The dataset contains the following columns: {columns}.
-Answer user queries accurately. DO NOT guess statistics, metrics, or facts about the dataset. Always use the available tools to fetch factual data if asked about dataset values, schema, or models. CRITICAL RULE: When calling tools, strictly use the integer dataset_id = {dataset_id}. Once you receive a tool's result, you MUST formulate your final answer immediately and DO NOT call any further tools.]
-
-User: {user_query}"""
+Answer user queries accurately. DO NOT guess statistics, metrics, or facts about the dataset. Always use the available tools to fetch factual data if asked about dataset values, schema, or models.
+CRITICAL RULE: When calling tools, you MUST use the exact integer dataset_id = {dataset_id}. Once you receive a tool's result, formulate your final answer immediately and do not call any further tools."""
     except Exception:
-        context_hook = f"[System instruction: You are an expert Autonomous Data Scientist. Use tools if requested. Do not guess stats.]\n\nUser: {user_query}"
+        system_instruction = "You are an expert Autonomous Data Scientist. Use tools if requested. Do not guess stats."
 
-    messages.append(HumanMessage(content=context_hook))
+    # Build messages correctly: SystemMessage FIRST, then history, then user query in HumanMessage
+    messages = [SystemMessage(content=system_instruction)]
+    for h in history:
+        messages.append(HumanMessage(content=h['question']))
+        messages.append(AIMessage(content=h['answer']))
+        
+    messages.append(HumanMessage(content=user_query))
     
     state = {
         "messages": messages,
