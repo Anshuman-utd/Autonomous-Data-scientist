@@ -36,11 +36,12 @@ def call_model(state):
         if GROQ_API_KEY == "dummy_key_replace_me":
              return {"messages": [AIMessage(content="Groq API Key is missing. I cannot process this dataset yet. Setup your GROQ_API_KEY in backend environment.")]}
              
+        groq_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
         model = ChatGroq(
-            model="llama-3.3-70b-versatile",
+            model=groq_model,
             temperature=0,
             groq_api_key=GROQ_API_KEY,
-            timeout=15,
+            timeout=20,
             max_retries=2
         )
         model_with_tools = model.bind_tools(tools)

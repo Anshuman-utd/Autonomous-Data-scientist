@@ -74,6 +74,9 @@ class RegisterView(APIView):
 # Datasets
 # ──────────────────────────────────────────────────────────────────────────────
 
+from .utils.file_handler import ensure_dataset_file_on_disk
+
+
 class UploadDatasetView(APIView):
     """
     POST /api/upload
@@ -111,6 +114,7 @@ class UploadDatasetView(APIView):
             if not columns or not preview:
                 from .utils.file_handler import process_csv_file as _pcf
                 try:
+                    ensure_dataset_file_on_disk(existing)
                     preview_result = _pcf(existing.file.path)
                     columns = preview_result.get("columns", [])
                     preview = preview_result.get("preview", [])
@@ -133,11 +137,21 @@ class UploadDatasetView(APIView):
                 "message": f"Loaded your existing dataset '{dataset_name}'.",
             }, status=status.HTTP_200_OK)
 
+        # Read CSV content into memory for DB persistence across ephemeral container restarts
+        csv_text = None
+        try:
+            file_obj.seek(0)
+            csv_text = file_obj.read().decode('utf-8', errors='ignore')
+            file_obj.seek(0)
+        except Exception:
+            pass
+
         # Create DB record (file is saved to media/datasets/ automatically)
         dataset = Dataset.objects.create(
             user=request.user,
             name=dataset_name,
             file=file_obj,
+            csv_data=csv_text,
         )
 
         try:
@@ -282,8 +296,8 @@ class EDAView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-        file_path = dataset.file.path
-        if not os.path.exists(file_path):
+        file_path = ensure_dataset_file_on_disk(dataset)
+        if not file_path or not os.path.exists(file_path):
             return Response({"error": "File not found on disk."}, status=status.HTTP_404_NOT_FOUND)
 
         # Check DB cache first
@@ -338,12 +352,13 @@ class TrainModelView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        file_path = dataset.file.path
-        if not os.path.exists(file_path):
+        file_path = ensure_dataset_file_on_disk(dataset)
+        if not file_path or not os.path.exists(file_path):
             return Response({"error": "File not found on disk."}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             import pandas as pd
+            import pickle
             df = pd.read_csv(file_path)
 
             # Preprocess
@@ -365,7 +380,14 @@ class TrainModelView(APIView):
             model_filename = f"model_{dataset.id}_{dataset_stem}.pkl"
             saved_path = save_model(best_model, model_filename)       # returns relative path
 
-            # Attach .pkl to ModelRecord via Django FileField
+            # Serialize model to bytes for cloud DB persistence (survives Render ephemeral restarts)
+            model_bytes = None
+            try:
+                model_bytes = pickle.dumps(best_model)
+            except Exception:
+                pass
+
+            # Attach .pkl to ModelRecord via Django FileField + persistent DB binary_data
             relative_path = saved_path                                 # already relative
             model_record = ModelRecord.objects.create(
                 user=request.user,
@@ -374,6 +396,7 @@ class TrainModelView(APIView):
                 accuracy=eval_results['best_score'],
                 metrics=eval_results['all_results'],
                 file=relative_path,                                   # stored as relative path
+                binary_data=model_bytes,                              # stored directly in PostgreSQL
             )
 
             return Response({
@@ -416,6 +439,7 @@ class DownloadModelView(APIView):
     """
     GET /api/download-model?model_id=<id>
     Stream the trained model .pkl file back to the user.
+    Falls back gracefully to binary_data stored in PostgreSQL if Render ephemeral disk wiped the file.
     """
     permission_classes = [IsAuthenticated]
 
@@ -433,15 +457,60 @@ class DownloadModelView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        if not model_record.file:
-            return Response({"error": "No file associated with this model."}, status=status.HTTP_404_NOT_FOUND)
+        filename = f"model_{model_record.id}.pkl"
+        if model_record.file and model_record.file.name:
+            filename = os.path.basename(model_record.file.name)
 
-        full_path = model_record.file.path
-        if not os.path.exists(full_path):
-            return Response({"error": "Model file missing on disk."}, status=status.HTTP_404_NOT_FOUND)
+        # 1. Primary: If file exists on local disk, serve it
+        if model_record.file and os.path.exists(model_record.file.path):
+            return FileResponse(open(model_record.file.path, 'rb'), as_attachment=True, filename=filename)
 
-        filename = os.path.basename(full_path)
-        return FileResponse(open(full_path, 'rb'), as_attachment=True, filename=filename)
+        # 2. Resilient Fallback: If Render restarted and wiped the ephemeral disk,
+        # stream directly from binary_data stored in PostgreSQL!
+        if model_record.binary_data:
+            import io
+            # Recreate on disk for any subsequent reads
+            try:
+                if model_record.file:
+                    os.makedirs(os.path.dirname(model_record.file.path), exist_ok=True)
+                    with open(model_record.file.path, 'wb') as f:
+                        f.write(model_record.binary_data)
+            except Exception:
+                pass
+            return FileResponse(io.BytesIO(model_record.binary_data), as_attachment=True, filename=filename)
+
+        return Response({"error": "Model file missing on disk."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class DownloadDatasetView(APIView):
+    """
+    GET /api/download-dataset?dataset_id=<id>
+    Stream dataset CSV file with authentication and persistent DB fallback.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        dataset_id = request.query_params.get('dataset_id')
+        if not dataset_id:
+            return Response({"error": "dataset_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            dataset = Dataset.objects.get(id=dataset_id, user=request.user)
+        except Dataset.DoesNotExist:
+            return Response({"error": "Dataset not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+
+        filename = dataset.name if dataset.name.endswith('.csv') else f"{dataset.name}.csv"
+        file_path = ensure_dataset_file_on_disk(dataset)
+
+        if file_path and os.path.exists(file_path):
+            return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+
+        if dataset.csv_data:
+            import io
+            return FileResponse(io.BytesIO(dataset.csv_data.encode('utf-8')), as_attachment=True, filename=filename)
+
+        return Response({"error": "Dataset file missing on disk."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────

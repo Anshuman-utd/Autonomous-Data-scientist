@@ -113,6 +113,28 @@ export default function Workspace() {
     );
   }
 
+  const handleDownloadDataset = async () => {
+    if (!dataset_id) return;
+    try {
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      };
+      const res = await axios.get(`${API_URL}/api/download-dataset?dataset_id=${dataset_id}`, config);
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', dataset?.name || `dataset_${dataset_id}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to download dataset. Please try again.");
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       {/* Workspace Header */}
@@ -139,14 +161,12 @@ export default function Workspace() {
 
         {/* Global Action controls */}
         <div className="flex items-center space-x-2 self-start md:self-auto">
-          <a
-            href={dataset.file_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center px-4 py-2 border border-border bg-slate-950 text-xs font-semibold text-slate-300 rounded-xl hover:bg-slate-900 hover:text-white transition"
+          <button
+            onClick={handleDownloadDataset}
+            className="inline-flex items-center px-4 py-2 border border-border bg-slate-950 text-xs font-semibold text-slate-300 rounded-xl hover:bg-slate-900 hover:text-white transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 mr-2" /> Download CSV
-          </a>
+          </button>
         </div>
       </div>
 

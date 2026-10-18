@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     ChatView,
+    DownloadDatasetView,
     DownloadModelView,
     EDAView,
     RegisterView,
@@ -22,10 +23,11 @@ urlpatterns = [
 
 
     # ── Datasets ─────────────────────────────────────────────────────────────
-    path('upload',         UploadDatasetView.as_view(),    name='upload_dataset'),
-    path('datasets',       UserDatasetsView.as_view(),     name='user_datasets'),   # GET
-    path('datasets/<int:pk>', DatasetDetailView.as_view(), name='dataset_detail'),
-    path('eda',            EDAView.as_view(),              name='eda_dataset'),
+    path('upload',           UploadDatasetView.as_view(),    name='upload_dataset'),
+    path('datasets',         UserDatasetsView.as_view(),     name='user_datasets'),   # GET
+    path('datasets/<int:pk>', DatasetDetailView.as_view(),   name='dataset_detail'),
+    path('eda',              EDAView.as_view(),              name='eda_dataset'),
+    path('download-dataset', DownloadDatasetView.as_view(),  name='download_dataset'),
 
 
     # ── Models ───────────────────────────────────────────────────────────────

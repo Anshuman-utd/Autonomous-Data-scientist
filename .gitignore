@@ -34,5 +34,8 @@ db.sqlite3
 
 # Python
 venv/
-__pycache__/
-*.pycbackend/media/models/*.pkl
+*.pyc
+*.pyo
+backend/media/models/*.pkl
+backend/media/datasets/*.csv
+backend/.env.used

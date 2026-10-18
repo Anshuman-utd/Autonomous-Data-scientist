@@ -2,6 +2,7 @@ import json
 from langchain_core.tools import tool
 from api.models import Dataset, ModelRecord
 from api.utils.eda import perform_eda
+from api.utils.file_handler import ensure_dataset_file_on_disk
 import pandas as pd
 
 # To properly isolate state per-invocation in LangChain and pass kwargs, we can rely on standard Python args,
@@ -12,7 +13,8 @@ def get_dataset_schema(dataset_id: int) -> str:
     """Useful to get the dataset's column names, data types, row count, and a small sample of the actual data."""
     try:
         dataset = Dataset.objects.get(id=dataset_id)
-        df = pd.read_csv(dataset.file.path)
+        file_path = ensure_dataset_file_on_disk(dataset)
+        df = pd.read_csv(file_path)
         
         info = {
             "total_rows": len(df),
@@ -29,7 +31,8 @@ def analyze_missing_values(dataset_id: int) -> str:
     """Useful to find missing values or understand data completeness for a given dataset."""
     try:
         dataset = Dataset.objects.get(id=dataset_id)
-        result = perform_eda(dataset.file.path)
+        file_path = ensure_dataset_file_on_disk(dataset)
+        result = perform_eda(file_path)
         if "missing_values" in result:
             return f"Missing values report: {json.dumps(result['missing_values'])}"
         return "No missing values data found."
@@ -41,7 +44,8 @@ def analyze_outliers(dataset_id: int) -> str:
     """Useful to find outliers or extreme values in numerical columns."""
     try:
         dataset = Dataset.objects.get(id=dataset_id)
-        result = perform_eda(dataset.file.path)
+        file_path = ensure_dataset_file_on_disk(dataset)
+        result = perform_eda(file_path)
         if "outliers" in result:
             summary = {k: {"count": v["count"], "lower_bound": v["lower_bound"], "upper_bound": v["upper_bound"]} 
                        for k, v in result["outliers"].items() if v["count"] > 0}

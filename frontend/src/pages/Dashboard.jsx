@@ -103,10 +103,26 @@ export default function Dashboard() {
     }
   };
 
-  const handleDownloadDataset = (e, ds) => {
+  const handleDownloadDataset = async (e, ds) => {
     e.stopPropagation();
-    // Raw download url
-    window.open(ds.file_url, '_blank');
+    try {
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      };
+      const res = await axios.get(`${API_URL}/api/download-dataset?dataset_id=${ds.id}`, config);
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', ds.name || `dataset_${ds.id}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to download dataset. Please try again.");
+    }
   };
 
   const navigateToWorkspace = (datasetId, tab = 'overview') => {

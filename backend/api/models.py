@@ -11,6 +11,7 @@ class Dataset(models.Model):
     name = models.CharField(max_length=255)
     file = models.FileField(upload_to='datasets/')
     metadata = models.JSONField(blank=True, null=True)  # EDA results, column info
+    csv_data = models.TextField(blank=True, null=True)  # File content backup for ephemeral serverless/container restarts
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -38,6 +39,7 @@ class ModelRecord(models.Model):
     accuracy = models.FloatField(blank=True, null=True)
     metrics = models.JSONField(blank=True, null=True)   # all per-model eval results
     file = models.FileField(upload_to='models/', blank=True, null=True)
+    binary_data = models.BinaryField(blank=True, null=True)  # Serialized model persistence for ephemeral cloud hosting
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

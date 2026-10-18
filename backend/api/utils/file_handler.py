@@ -1,5 +1,23 @@
 import os
 
+def ensure_dataset_file_on_disk(dataset):
+    """
+    Ensures dataset CSV exists on disk.
+    If the file was removed due to Render's ephemeral container restart,
+    reconstructs it immediately from dataset.csv_data stored in PostgreSQL.
+    """
+    if not dataset or not dataset.file:
+        return None
+    try:
+        file_path = dataset.file.path
+        if not os.path.exists(file_path) and getattr(dataset, 'csv_data', None):
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(dataset.csv_data)
+        return file_path
+    except Exception:
+        return getattr(dataset.file, 'path', None)
+
 def process_csv_file(file_path):
     """
     Reads a CSV file, extracts its columns and first 5 rows (preview).
