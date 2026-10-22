@@ -60,7 +60,9 @@ export default function FileUpload({ onUploadSuccess, onUploadError }) {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${API_URL}/api/upload`, formData);
+      const token = localStorage.getItem('access_token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const response = await axios.post(`${API_URL}/api/upload`, formData, config);
       onUploadSuccess(response.data);
     } catch (err) {
       const errorMsg = err.response?.data?.error || "An error occurred while uploading.";

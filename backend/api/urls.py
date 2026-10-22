@@ -13,6 +13,11 @@ from .views import (
     UserModelsView,
     EmailTokenObtainPairView,
     DatasetDetailView,
+    DatasetTransformView,
+    LivePredictView,
+    ModelSchemaView,
+    ExportReportView,
+    ExportDeploymentView,
 )
 
 urlpatterns = [
@@ -26,15 +31,23 @@ urlpatterns = [
     path('upload',           UploadDatasetView.as_view(),    name='upload_dataset'),
     path('datasets',         UserDatasetsView.as_view(),     name='user_datasets'),   # GET
     path('datasets/<int:pk>', DatasetDetailView.as_view(),   name='dataset_detail'),
+    path('datasets/<int:pk>/transform', DatasetTransformView.as_view(), name='dataset_transform'),
     path('eda',              EDAView.as_view(),              name='eda_dataset'),
     path('download-dataset', DownloadDatasetView.as_view(),  name='download_dataset'),
 
 
-    # ── Models ───────────────────────────────────────────────────────────────
-    path('train',          TrainModelView.as_view(),       name='train_model'),
-    path('models',         UserModelsView.as_view(),       name='user_models'),     # GET
-    path('download-model', DownloadModelView.as_view(),    name='download_model'),
+    # ── Models & Inference ───────────────────────────────────────────────────
+    path('train',              TrainModelView.as_view(),       name='train_model'),
+    path('models',             UserModelsView.as_view(),       name='user_models'),     # GET
+    path('predict',            LivePredictView.as_view(),      name='live_predict'),
+    path('model-schema',       ModelSchemaView.as_view(),      name='model_schema'),
+    path('download-model',     DownloadModelView.as_view(),    name='download_model'),
+    path('export-deployment',  ExportDeploymentView.as_view(), name='export_deployment'),
+
+    # ── Reports ──────────────────────────────────────────────────────────────
+    path('export-report',      ExportReportView.as_view(),     name='export_report'),
 
     # ── Chat ─────────────────────────────────────────────────────────────────
-    path('chat',           ChatView.as_view(),             name='chat'),
+    path('chat',               ChatView.as_view(),             name='chat'),
 ]
+

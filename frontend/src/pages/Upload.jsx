@@ -20,7 +20,9 @@ export default function UploadPage() {
   useEffect(() => {
     const fetchDatasets = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/datasets`);
+        const token = localStorage.getItem('access_token');
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        const res = await axios.get(`${API_URL}/api/datasets`, config);
         setMyDatasets(res.data.results || []);
       } catch {
         // Non-fatal — just hide the panel
@@ -35,7 +37,9 @@ export default function UploadPage() {
     setError(null);
     setDataset(data);
     // Refresh the datasets list after a new upload
-    axios.get(`${API_URL}/api/datasets`)
+    const token = localStorage.getItem('access_token');
+    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+    axios.get(`${API_URL}/api/datasets`, config)
       .then(r => setMyDatasets(r.data.results || []))
       .catch(() => {});
   };

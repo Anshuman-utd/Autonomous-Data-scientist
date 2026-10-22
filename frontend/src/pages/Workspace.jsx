@@ -15,12 +15,17 @@ import CorrelationHeatmap from '../components/CorrelationHeatmap';
 import DistributionCharts from '../components/DistributionCharts';
 import CategoricalCharts from '../components/CategoricalCharts';
 import OutliersSection from '../components/OutliersSection';
+import FeatureImportanceChart from '../components/FeatureImportanceChart';
+import SmartCleaningSection from '../components/SmartCleaningSection';
+import PredictionPlayground from '../components/PredictionPlayground';
+import DeploymentExportTab from '../components/DeploymentExportTab';
 
 import {
   ArrowLeft, Info, BarChart2, Cpu, MessageSquare, 
   Settings, Database, Play, Download, Send, CheckCircle,
   AlertCircle, ChevronRight, Loader2, Sparkles, Terminal,
-  BookOpen, Target, FileText, RefreshCw, Copy, Check
+  BookOpen, Target, FileText, RefreshCw, Copy, Check,
+  Sliders, Server, Box, Printer, ExternalLink
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
@@ -135,6 +140,31 @@ export default function Workspace() {
     }
   };
 
+  const handleExportReport = () => {
+    if (!dataset_id) return;
+    const championModel = models[0]?.id;
+    const tokenParam = token ? `&token=${token}` : '';
+    const url = `${API_URL}/api/export-report?dataset_id=${dataset_id}${championModel ? `&model_id=${championModel}` : ''}${tokenParam}`;
+    window.open(url, '_blank');
+  };
+
+  const handleDataCleaned = (cleanedRes) => {
+    if (cleanedRes.eda_report) {
+      setEdaData(cleanedRes.eda_report);
+    }
+    if (cleanedRes.columns && cleanedRes.preview) {
+      setDataset(prev => ({
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          columns: cleanedRes.columns,
+          preview: cleanedRes.preview,
+          eda_report: cleanedRes.eda_report
+        }
+      }));
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       {/* Workspace Header */}
@@ -142,7 +172,7 @@ export default function Workspace() {
         <div className="flex items-center space-x-3.5">
           <button 
             onClick={() => navigate('/')}
-            className="p-2.5 border border-border bg-slate-950 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition flex items-center justify-center"
+            className="p-2.5 border border-border bg-slate-950 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition flex items-center justify-center cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -153,17 +183,24 @@ export default function Workspace() {
               <h1 className="text-xl font-bold text-white tracking-tight truncate max-w-[280px] sm:max-w-md" title={dataset.name}>
                 {dataset.name}
               </h1>
-              <Badge variant="success" className="text-[9px] uppercase tracking-wider">Workspace Active</Badge>
+              <Badge variant="success" className="text-[9px] uppercase tracking-wider font-mono">Workspace Active</Badge>
             </div>
             <p className="text-xs text-slate-500 mt-1">Uploaded on {new Date(dataset.uploaded_at).toLocaleDateString()}</p>
           </div>
         </div>
 
         {/* Global Action controls */}
-        <div className="flex items-center space-x-2 self-start md:self-auto">
+        <div className="flex items-center space-x-2 self-start md:self-auto flex-wrap gap-y-2">
+          <button
+            onClick={handleExportReport}
+            className="inline-flex items-center px-3.5 py-2 border border-primary/40 bg-primary/10 text-xs font-semibold text-cyan-300 rounded-xl hover:bg-primary/20 hover:text-white transition cursor-pointer shadow-sm hover:shadow-primary/20"
+            title="Open printable Executive Summary Briefing"
+          >
+            <FileText className="w-3.5 h-3.5 mr-2 text-cyan-400" /> Export Executive Report
+          </button>
           <button
             onClick={handleDownloadDataset}
-            className="inline-flex items-center px-4 py-2 border border-border bg-slate-950 text-xs font-semibold text-slate-300 rounded-xl hover:bg-slate-900 hover:text-white transition cursor-pointer"
+            className="inline-flex items-center px-3.5 py-2 border border-border bg-slate-950 text-xs font-semibold text-slate-300 rounded-xl hover:bg-slate-900 hover:text-white transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 mr-2" /> Download CSV
           </button>
@@ -212,6 +249,36 @@ export default function Workspace() {
           </button>
 
           <button
+            onClick={() => setTab('predict')}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold tracking-tight transition-all duration-150 ${
+              activeTab === 'predict'
+                ? 'bg-primary text-white shadow-lg shadow-primary/10'
+                : 'text-slate-400 hover:text-white hover:bg-card/50'
+            }`}
+          >
+            <Sliders className="w-4 h-4 text-cyan-400" />
+            <div className="flex items-center justify-between w-full">
+              <span>Predict ("What-If")</span>
+              <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 text-[9px] rounded font-mono font-bold">Live</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setTab('deploy')}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold tracking-tight transition-all duration-150 ${
+              activeTab === 'deploy'
+                ? 'bg-primary text-white shadow-lg shadow-primary/10'
+                : 'text-slate-400 hover:text-white hover:bg-card/50'
+            }`}
+          >
+            <Server className="w-4 h-4 text-emerald-400" />
+            <div className="flex items-center justify-between w-full">
+              <span>Deploy / Export</span>
+              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] rounded font-mono font-bold">FastAPI</span>
+            </div>
+          </button>
+
+          <button
             onClick={() => setTab('chat')}
             className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold tracking-tight transition-all duration-150 ${
               activeTab === 'chat'
@@ -238,17 +305,33 @@ export default function Workspace() {
 
         {/* Right Side Content View Area */}
         <div className="lg:col-span-9">
-          {activeTab === 'overview' && <OverviewTab dataset={dataset} edaData={edaData} />}
-          {activeTab === 'eda' && <EDATab edaData={edaData} />}
-          {activeTab === 'training' && <TrainingTab dataset_id={dataset_id} edaData={edaData} initialModels={models} onModelsUpdated={(list) => setModels(list)} />}
+          {activeTab === 'overview' && <OverviewTab dataset={dataset} edaData={edaData} onExportReport={handleExportReport} />}
+          {activeTab === 'eda' && (
+            <EDATab 
+              edaData={edaData} 
+              datasetId={dataset_id} 
+              onDataCleaned={handleDataCleaned} 
+            />
+          )}
+          {activeTab === 'training' && (
+            <TrainingTab 
+              dataset_id={dataset_id} 
+              edaData={edaData} 
+              initialModels={models} 
+              onModelsUpdated={(list) => setModels(list)} 
+              onNavigateToPredict={() => setTab('predict')}
+            />
+          )}
+          {activeTab === 'predict' && <PredictionPlayground dataset={dataset} models={models} />}
+          {activeTab === 'deploy' && <DeploymentExportTab dataset={dataset} models={models} />}
           {activeTab === 'chat' && <ChatTab dataset={dataset} models={models} />}
           {activeTab === 'settings' && <SettingsTab dataset={dataset} />}
         </div>
-
       </div>
     </div>
   );
 }
+
 
 // ──────────────────────────────────────────────────────────────────────────────
 // OVERVIEW TAB SUBCOMPONENT
@@ -359,11 +442,18 @@ function OverviewTab({ dataset, edaData }) {
 // ──────────────────────────────────────────────────────────────────────────────
 // EDA TAB SUBCOMPONENT
 // ──────────────────────────────────────────────────────────────────────────────
-function EDATab({ edaData }) {
+function EDATab({ edaData, datasetId, onDataCleaned }) {
   if (!edaData) return <Skeleton className="h-96 w-full" />;
 
   return (
     <div className="space-y-8">
+      {/* Automated Smart Cleaning Suggestion Chips */}
+      <SmartCleaningSection
+        datasetId={datasetId}
+        edaData={edaData}
+        onDataCleaned={onDataCleaned}
+      />
+
       {/* Overview stats cards inline */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <MissingValuesChart missing={edaData.missing_values} />
@@ -382,7 +472,7 @@ function EDATab({ edaData }) {
 // ──────────────────────────────────────────────────────────────────────────────
 // TRAINING TAB SUBCOMPONENT
 // ──────────────────────────────────────────────────────────────────────────────
-function TrainingTab({ dataset_id, edaData, initialModels, onModelsUpdated }) {
+function TrainingTab({ dataset_id, edaData, initialModels, onModelsUpdated, onNavigateToPredict }) {
   const { token } = useAuth();
   
   const [columns, setColumns] = useState([]);
@@ -612,13 +702,24 @@ function TrainingTab({ dataset_id, edaData, initialModels, onModelsUpdated }) {
                 </div>
               </div>
 
-              <Button 
-                onClick={() => handleDownloadModel(results.model_id)}
-                className="flex items-center shrink-0 px-6"
-                loading={downloading}
-              >
-                <Download className="w-4 h-4 mr-2" /> Download Model (.pkl)
-              </Button>
+              <div className="flex items-center space-x-3 shrink-0">
+                {onNavigateToPredict && (
+                  <Button 
+                    onClick={onNavigateToPredict}
+                    variant="secondary"
+                    className="flex items-center px-4 text-cyan-300 border-cyan-500/30 hover:bg-cyan-950/40"
+                  >
+                    <Sliders className="w-4 h-4 mr-1.5 text-cyan-400" /> Test Live
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => handleDownloadModel(results.model_id)}
+                  className="flex items-center px-5"
+                  loading={downloading}
+                >
+                  <Download className="w-4 h-4 mr-2" /> Download Model (.pkl)
+                </Button>
+              </div>
             </div>
           </Card>
 
@@ -736,6 +837,14 @@ function TrainingTab({ dataset_id, edaData, initialModels, onModelsUpdated }) {
             </div>
           )}
 
+          {/* Feature Importance & Model Explainability */}
+          {results.feature_importance && results.feature_importance.length > 0 && (
+            <FeatureImportanceChart 
+              featureImportance={results.feature_importance} 
+              modelName={results.best_model} 
+            />
+          )}
+
         </div>
       )}
 
@@ -755,8 +864,17 @@ function TrainingTab({ dataset_id, edaData, initialModels, onModelsUpdated }) {
                   <h4 className="text-xs font-bold text-slate-200">{m.model_name}</h4>
                   <p className="text-[10px] text-slate-500 mt-0.5">Trained on {new Date(m.created_at).toLocaleString()}</p>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
                   <span className="font-mono text-xs font-semibold text-emerald-400">{m.accuracy?.toFixed(4)}</span>
+                  {onNavigateToPredict && (
+                    <button 
+                      onClick={onNavigateToPredict}
+                      className="p-1.5 hover:bg-slate-900 border border-border text-cyan-400 hover:text-white rounded-lg transition"
+                      title="Test in What-If Simulator"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button 
                     onClick={() => handleDownloadModel(m.id)}
                     className="p-1.5 hover:bg-slate-900 border border-border text-slate-400 hover:text-white rounded-lg transition"

@@ -29,8 +29,10 @@ export default function ModelTraining() {
 
     const fetchColumns = async () => {
       try {
+        const token = localStorage.getItem('access_token');
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
         const urlParams = dataset_id ? `dataset_id=${dataset_id}` : `filename=${filename}`;
-        const response = await axios.get(`${API_URL}/api/eda?${urlParams}`);
+        const response = await axios.get(`${API_URL}/api/eda?${urlParams}`, config);
         if (response.data.columns) {
           setColumns(response.data.columns);
           // Set last column as default target
@@ -54,11 +56,13 @@ export default function ModelTraining() {
     setResults(null);
     
     try {
+      const token = localStorage.getItem('access_token');
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
       const response = await axios.post(`${API_URL}/api/train`, {
         dataset_id: dataset_id || null,
         filename: filename || null,
         target_column: targetColumn || null
-      });
+      }, config);
       setResults(response.data);
     } catch (err) {
       setError(err.response?.data?.error || "An error occurred during model training.");

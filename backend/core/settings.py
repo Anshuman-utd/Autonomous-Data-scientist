@@ -33,10 +33,14 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get(
-    'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,autonomous-data-scientist-9d1o.onrender.com'
-).split(',')
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get(
+        'ALLOWED_HOSTS',
+        'localhost,127.0.0.1,testserver,autonomous-data-scientist-9d1o.onrender.com'
+    ).split(',')
+]
+
 
 
 # Application definition
@@ -56,9 +60,11 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'api.auth.QueryParamOrHeaderJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
+
 
 from datetime import timedelta
 SIMPLE_JWT = {
@@ -224,5 +230,36 @@ AUTHENTICATION_BACKENDS = [
 CORS_EXPOSE_HEADERS = [
     'content-disposition',
 ]
+
+# ── Redis Cache & Celery Configuration ──────────────────────────────────────
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')
+
+# Use Redis cache if REDIS_URL is provided or not DEBUG; fallback to LocMemCache locally
+if os.environ.get('USE_REDIS_CACHE', 'False') == 'True':
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'TIMEOUT': 300,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'autonomous-ds-cache',
+            'TIMEOUT': 300,
+        }
+    }
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'))
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'))
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+# In local dev without a background worker, Celery can run tasks eagerly if worker is absent
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_ALWAYS_EAGER', 'False') == 'True'
+
 
 
