@@ -234,8 +234,8 @@ CORS_EXPOSE_HEADERS = [
 # ── Redis Cache & Celery Configuration ──────────────────────────────────────
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')
 
-# Use Redis cache if REDIS_URL is provided or not DEBUG; fallback to LocMemCache locally
-if os.environ.get('USE_REDIS_CACHE', 'False') == 'True':
+# Use Redis cache if REDIS_URL is provided and USE_REDIS_CACHE is explicitly enabled; fallback to LocMemCache locally
+if os.environ.get('USE_REDIS_CACHE', 'False') == 'True' and os.environ.get('REDIS_URL'):
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
@@ -258,8 +258,11 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-# In local dev without a background worker, Celery can run tasks eagerly if worker is absent
-CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_ALWAYS_EAGER', 'False') == 'True'
+# In environments without a background Redis worker, run tasks eagerly in-process without crashing
+CELERY_TASK_ALWAYS_EAGER = os.environ.get(
+    'CELERY_ALWAYS_EAGER',
+    'False' if os.environ.get('REDIS_URL') or os.environ.get('CELERY_BROKER_URL') else 'True'
+).lower() in ('true', '1', 'yes')
 
 
 

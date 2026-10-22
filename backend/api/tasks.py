@@ -74,7 +74,8 @@ def train_model_async_task(self, dataset_id, user_id, target_col):
                 "schema_info": prep_results.get('schema_info', []),
                 "problem_type": problem_type,
                 "target_column": target_col,
-                "target_classes": prep_results.get('target_classes', [])
+                "target_classes": prep_results.get('target_classes', []),
+                "features": features
             },
             file=saved_path,
             binary_data=model_bytes

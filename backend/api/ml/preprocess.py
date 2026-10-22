@@ -136,9 +136,9 @@ def predict_with_bundle(bundle, raw_inputs):
     """
     Given a model bundle and a dictionary of raw input features,
     transforms inputs using fitted preprocessors and returns live prediction with probabilities.
+    Guarantees strict alignment with model.feature_names_in_ to prevent unseen target column errors.
     """
     model = bundle['model']
-    features = bundle['features']
     problem_type = bundle.get('problem_type', 'classification')
     numeric_cols = bundle.get('numeric_cols', [])
     categorical_cols = bundle.get('categorical_cols', [])
@@ -149,17 +149,29 @@ def predict_with_bundle(bundle, raw_inputs):
     target_classes = bundle.get('target_classes', [])
     scaler = bundle.get('scaler')
 
-    # Construct single-row DataFrame
+    # Resolve true feature list: model.feature_names_in_ is the single source of truth
+    fitted_features = getattr(model, 'feature_names_in_', None)
+    if fitted_features is not None:
+        features = [str(f) for f in fitted_features]
+    else:
+        features = [str(f) for f in bundle.get('features', [])]
+
+    # Explicitly exclude target column if it leaked into features
+    target_col = bundle.get('target_col') or bundle.get('target_column')
+    if target_col and target_col in features:
+        features = [f for f in features if f != target_col]
+
+    # Construct single-row DataFrame strictly containing features
     row = {}
     for feat in features:
         val = raw_inputs.get(feat)
-        if feat in numeric_cols:
+        if feat in numeric_cols or (not categorical_cols and isinstance(val, (int, float))):
             try:
-                row[feat] = float(val) if val is not None and val != '' else np.nan
+                row[feat] = float(val) if val is not None and str(val).strip() != '' else 0.0
             except (ValueError, TypeError):
-                row[feat] = np.nan
+                row[feat] = 0.0
         else:
-            row[feat] = str(val) if val is not None else ""
+            row[feat] = str(val) if val is not None and str(val).strip() != '' else ""
 
     df_row = pd.DataFrame([row], columns=features)
 

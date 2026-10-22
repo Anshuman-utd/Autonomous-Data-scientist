@@ -659,33 +659,61 @@ class LivePredictView(APIView):
         # Fallback to binary_data in DB
         if bundle is None and model_record.binary_data:
             try:
-                import pickle
-                bundle = pickle.loads(model_record.binary_data)
+                import io, joblib
+                bundle = joblib.load(io.BytesIO(bytes(model_record.binary_data)))
             except Exception:
                 pass
+            if bundle is None:
+                try:
+                    import pickle
+                    bundle = pickle.loads(model_record.binary_data)
+                except Exception:
+                    pass
 
         if bundle is None:
             return Response({"error": "Failed to load model artifact."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # If legacy raw model rather than dictionary bundle, wrap it
         if not isinstance(bundle, dict):
-            features = (model_record.metrics or {}).get('features', list(inputs.keys()))
+            model_obj = bundle
+            fitted_features = getattr(model_obj, 'feature_names_in_', None)
+            if fitted_features is not None:
+                features = [str(f) for f in fitted_features]
+            else:
+                features = [str(f) for f in (model_record.metrics or {}).get('features', [])]
+            
+            target_col = (model_record.metrics or {}).get('target_column')
+            if not features:
+                features = [str(k) for k in inputs.keys() if k != target_col]
+            elif target_col and target_col in features:
+                features = [f for f in features if f != target_col]
+
             problem_type = (model_record.metrics or {}).get('problem_type', 'classification')
             bundle = {
-                "model": bundle,
+                "model": model_obj,
                 "features": features,
                 "problem_type": problem_type,
                 "numeric_cols": features,
                 "categorical_cols": [],
                 "encoders": {},
-                "scaler": None
+                "scaler": None,
+                "target_col": target_col
             }
+        else:
+            # Bundle is dict: guarantee features strictly excludes target column
+            model_obj = bundle.get('model')
+            fitted_features = getattr(model_obj, 'feature_names_in_', None)
+            if fitted_features is not None:
+                bundle['features'] = [str(f) for f in fitted_features]
+            target_col = bundle.get('target_col') or (model_record.metrics or {}).get('target_column')
+            if target_col and target_col in bundle.get('features', []):
+                bundle['features'] = [f for f in bundle['features'] if f != target_col]
 
         try:
             result = predict_with_bundle(bundle, inputs)
             result["model_id"] = model_record.id
             result["model_name"] = model_record.model_name
-            result["target_column"] = (model_record.metrics or {}).get('target_column', 'Prediction')
+            result["target_column"] = bundle.get('target_col') or (model_record.metrics or {}).get('target_column', 'Prediction')
 
             # Top driver explanation
             feat_imp = (model_record.metrics or {}).get('feature_importance', [])
@@ -703,6 +731,7 @@ class ModelSchemaView(APIView):
     """
     GET /api/model-schema?model_id=<id>
     Returns input features schema, min/max ranges, and feature importance for What-If simulator.
+    Strictly excludes the target column from schema_info to prevent model fit mismatch errors.
     """
     permission_classes = [IsAuthenticated]
 
@@ -718,13 +747,95 @@ class ModelSchemaView(APIView):
 
         metrics = model_record.metrics or {}
         schema_info = metrics.get('schema_info', [])
-        features = metrics.get('features', [])
+        features = list(metrics.get('features', []))
         feature_importance = metrics.get('feature_importance', [])
         problem_type = metrics.get('problem_type', 'classification')
         target_column = metrics.get('target_column', '')
         target_classes = metrics.get('target_classes', [])
 
-        # Fallback schema synthesis from dataset if legacy model
+        # Load underlying model object to inspect ground truth fitted feature names
+        model_obj = None
+        if model_record.file and os.path.exists(model_record.file.path):
+            try:
+                import joblib
+                loaded = joblib.load(model_record.file.path)
+                model_obj = loaded['model'] if isinstance(loaded, dict) else loaded
+            except Exception:
+                pass
+        if model_obj is None and model_record.binary_data:
+            try:
+                import io, joblib
+                loaded = joblib.load(io.BytesIO(bytes(model_record.binary_data)))
+                model_obj = loaded['model'] if isinstance(loaded, dict) else loaded
+            except Exception:
+                pass
+
+        # If model has feature_names_in_, it is the absolute ground truth of features
+        if model_obj is not None and hasattr(model_obj, 'feature_names_in_'):
+            features = [str(f) for f in model_obj.feature_names_in_]
+
+        # Auto-deduce target_column if not explicitly recorded in metrics
+        if not target_column and model_record.dataset:
+            dataset = model_record.dataset
+            cols = list((dataset.metadata or {}).get('columns', []))
+            if not cols:
+                ensure_dataset_file_on_disk(dataset)
+                if dataset.file and os.path.exists(dataset.file.path):
+                    import pandas as pd
+                    try:
+                        df_sample = pd.read_csv(dataset.file.path, nrows=5)
+                        cols = list(df_sample.columns)
+                    except Exception:
+                        pass
+            if cols:
+                non_feature_cols = [c for c in cols if c not in features]
+                if non_feature_cols:
+                    target_column = non_feature_cols[-1]
+                else:
+                    target_column = cols[-1]
+
+        # Ensure features list strictly never contains target_column
+        if target_column and target_column in features:
+            features = [f for f in features if f != target_column]
+
+        # Fallback feature importance calculation for legacy models
+        if not feature_importance:
+            try:
+                from .ml.evaluate import calculate_feature_importance
+                if model_obj is not None:
+                    cols = (model_record.dataset.metadata or {}).get("columns", [])
+                    feat_list = [c for c in cols if c != target_column] if cols else features
+                    n_in = getattr(model_obj, "n_features_in_", len(feat_list))
+                    if len(feat_list) >= n_in:
+                        feat_list = feat_list[:n_in]
+                    feature_importance = calculate_feature_importance(model_obj, feat_list, problem_type)
+            except Exception:
+                pass
+            if not feature_importance and model_record.dataset and model_record.dataset.metadata:
+                eda_rep = model_record.dataset.metadata.get("eda_report", {})
+                corr_list = eda_rep.get("correlation", [])
+                if isinstance(corr_list, list) and corr_list:
+                    scores = {}
+                    for item in corr_list:
+                        if isinstance(item, dict):
+                            x, y, val = item.get("x"), item.get("y"), abs(item.get("value", 0.0) or 0.0)
+                            if x and y and x != y and x != target_column and y != target_column:
+                                scores[x] = scores.get(x, 0.0) + val
+                    if scores:
+                        tot = sum(scores.values()) or 1.0
+                        feature_importance = [
+                            {"feature": str(k), "importance": round((v / tot) * 100, 2), "raw_score": round(v, 4)}
+                            for k, v in sorted(scores.items(), key=lambda x: x[1], reverse=True)
+                        ]
+
+        # Sanitize existing schema_info so target_column is NEVER present as an input
+        if schema_info:
+            schema_info = [
+                f for f in schema_info 
+                if f.get('name') != target_column and (not features or f.get('name') in features)
+            ]
+
+        # Synthesize schema_info if absent
         if not schema_info:
             dataset = model_record.dataset
             ensure_dataset_file_on_disk(dataset)
@@ -732,8 +843,9 @@ class ModelSchemaView(APIView):
                 import pandas as pd
                 df = pd.read_csv(dataset.file.path)
                 schema_info = []
-                for col in df.columns:
-                    if col == target_column:
+                allowed_cols = features if features else [c for c in df.columns if c != target_column]
+                for col in allowed_cols:
+                    if col not in df.columns or col == target_column:
                         continue
                     if pd.api.types.is_numeric_dtype(df[col]):
                         c_min = float(df[col].min()) if not pd.isna(df[col].min()) else 0.0
