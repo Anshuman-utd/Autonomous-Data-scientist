@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.2" "setuptools>=84.1" && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application source
@@ -26,4 +26,4 @@ COPY . .
 EXPOSE 8000
 
 # Default command runs migrations then launches Gunicorn server
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers ${WEB_CONCURRENCY:-1} --timeout 180"]

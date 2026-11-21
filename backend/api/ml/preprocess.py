@@ -1,135 +1,23 @@
 import pandas as pd
 import numpy as np
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+
 
 def detect_problem_type(df, target_col):
     """
     Detects if the problem is classification or regression based on target column type.
     """
-    if pd.api.types.is_object_dtype(df[target_col]) or pd.api.types.is_categorical_dtype(df[target_col]) or pd.api.types.is_bool_dtype(df[target_col]):
+    if (
+        pd.api.types.is_object_dtype(df[target_col])
+        or pd.api.types.is_categorical_dtype(df[target_col])
+        or pd.api.types.is_bool_dtype(df[target_col])
+    ):
         return "classification"
-    
+
     unique_count = df[target_col].nunique()
-    if pd.api.types.is_integer_dtype(df[target_col]) and unique_count < 20: 
+    if pd.api.types.is_integer_dtype(df[target_col]) and unique_count < 20:
         return "classification"
-        
+
     return "regression"
-
-def preprocess_data(df, target_col=None):
-    """
-    Preprocesses the dataframe by handling missing values, encoding categoricals,
-    separating features (X) and target (y), and compiling feature schemas for live prediction.
-    """
-    if target_col is None:
-        target_col = df.columns[-1]
-        
-    if target_col not in df.columns:
-        raise ValueError(f"Target column '{target_col}' not found in the dataset.")
-        
-    problem_type = detect_problem_type(df, target_col)
-    
-    # Separate X and y
-    y_raw = df[target_col].copy()
-    X_processed = df.drop(columns=[target_col]).copy()
-    
-    # 1. Identify Numerical and Categorical columns in X
-    numeric_cols = list(X_processed.select_dtypes(include=['int64', 'float64', 'int32', 'float32', 'number']).columns)
-    categorical_cols = list(X_processed.select_dtypes(include=['object', 'category', 'bool']).columns)
-    
-    # 2. Handle missing values
-    num_imputer = None
-    if len(numeric_cols) > 0:
-        num_imputer = SimpleImputer(strategy='mean')
-        X_processed[numeric_cols] = num_imputer.fit_transform(X_processed[numeric_cols])
-        
-    cat_imputer = None
-    if len(categorical_cols) > 0:
-        cat_imputer = SimpleImputer(strategy='most_frequent')
-        X_processed[categorical_cols] = cat_imputer.fit_transform(X_processed[categorical_cols])
-        
-    # 3. Encode categorical columns in X
-    label_encoders = {}
-    categorical_options = {}
-    for col in categorical_cols:
-        le = LabelEncoder()
-        X_processed[col] = le.fit_transform(X_processed[col].astype(str))
-        label_encoders[col] = le
-        categorical_options[col] = [str(c) for c in le.classes_[:50]]
-        
-    # 4. Compile schema information and min/max ranges for What-If simulator
-    schema_info = []
-    feature_ranges = {}
-    for col in X_processed.columns:
-        if col in numeric_cols:
-            c_min = float(X_processed[col].min()) if not np.isnan(X_processed[col].min()) else 0.0
-            c_max = float(X_processed[col].max()) if not np.isnan(X_processed[col].max()) else 100.0
-            c_mean = float(X_processed[col].mean()) if not np.isnan(X_processed[col].mean()) else 0.0
-            c_median = float(X_processed[col].median()) if not np.isnan(X_processed[col].median()) else 0.0
-            diff = c_max - c_min
-            step = 1.0 if diff > 50 and isinstance(c_min, int) else (round(diff / 100.0, 3) if diff > 0 else 0.1)
-            feature_ranges[col] = {
-                "min": c_min, "max": c_max, "mean": c_mean, "median": c_median, "step": step
-            }
-            schema_info.append({
-                "name": col,
-                "type": "numeric",
-                "min": round(c_min, 2),
-                "max": round(c_max, 2),
-                "mean": round(c_mean, 2),
-                "median": round(c_median, 2),
-                "step": step if step > 0 else 0.1,
-                "default": round(c_median, 2)
-            })
-        else:
-            opts = categorical_options.get(col, [])
-            default_val = opts[0] if opts else ""
-            schema_info.append({
-                "name": col,
-                "type": "categorical",
-                "options": opts,
-                "default": default_val
-            })
-
-    # 5. Handle target column y
-    target_encoder = None
-    target_classes = []
-    y = y_raw.copy()
-    if problem_type == "classification" and (pd.api.types.is_object_dtype(y) or pd.api.types.is_categorical_dtype(y) or pd.api.types.is_bool_dtype(y)):
-        target_encoder = LabelEncoder()
-        y = target_encoder.fit_transform(y.astype(str))
-        target_classes = [str(c) for c in target_encoder.classes_]
-    elif problem_type == "classification":
-        unique_targets = sorted(list(y.dropna().unique()))
-        target_classes = [str(c) for c in unique_targets]
-    else:
-        if y.isnull().any():
-            y = y.fillna(y.mean())
-                
-    # 6. Scale Features
-    scaler = StandardScaler()
-    X_scaled = pd.DataFrame(scaler.fit_transform(X_processed), columns=X_processed.columns)
-    
-    return {
-        'X': X_scaled,
-        'y': y,
-        'features': list(X_scaled.columns),
-        'numeric_cols': numeric_cols,
-        'categorical_cols': categorical_cols,
-        'problem_type': problem_type,
-        'target_col': target_col,
-        'target_classes': target_classes,
-        'encoders': {
-            'features': label_encoders,
-            'target': target_encoder
-        },
-        'categorical_options': categorical_options,
-        'feature_ranges': feature_ranges,
-        'schema_info': schema_info,
-        'num_imputer': num_imputer,
-        'cat_imputer': cat_imputer,
-        'scaler': scaler
-    }
 
 
 def predict_with_bundle(bundle, raw_inputs):
@@ -138,26 +26,63 @@ def predict_with_bundle(bundle, raw_inputs):
     transforms inputs using fitted preprocessors and returns live prediction with probabilities.
     Guarantees strict alignment with model.feature_names_in_ to prevent unseen target column errors.
     """
-    model = bundle['model']
-    problem_type = bundle.get('problem_type', 'classification')
-    numeric_cols = bundle.get('numeric_cols', [])
-    categorical_cols = bundle.get('categorical_cols', [])
-    num_imputer = bundle.get('num_imputer')
-    cat_imputer = bundle.get('cat_imputer')
-    label_encoders = bundle.get('encoders', {}).get('features', {})
-    target_encoder = bundle.get('encoders', {}).get('target')
-    target_classes = bundle.get('target_classes', [])
-    scaler = bundle.get('scaler')
+    model = bundle["model"]
+    if bundle.get("format_version") == 2:
+        features = bundle["features"]
+        if not isinstance(raw_inputs, dict) or set(raw_inputs) != set(features):
+            raise ValueError("Provide exactly the input fields required by this model.")
+        row = {}
+        for feat in features:
+            value = raw_inputs[feat]
+            if feat in bundle["numeric_cols"]:
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    raise ValueError(f"{feat} must be a number.")
+                if not np.isfinite(value):
+                    raise ValueError(f"{feat} must be a finite number.")
+            else:
+                if not isinstance(value, (str, int, float, bool)):
+                    raise ValueError(f"{feat} must be a category.")
+                value = str(value)
+            row[feat] = value
+        frame = pd.DataFrame([row], columns=features)
+        prediction = model.predict(frame)[0]
+        classification = bundle["problem_type"] == "classification"
+        probabilities, confidence = {}, None
+        if classification and hasattr(model, "predict_proba"):
+            probs = model.predict_proba(frame)[0]
+            probabilities = {
+                str(c): round(float(p) * 100, 2) for c, p in zip(model.classes_, probs)
+            }
+            confidence = round(float(max(probs)) * 100, 2)
+        return {
+            "prediction": str(prediction) if classification else float(prediction),
+            "problem_type": bundle["problem_type"],
+            "confidence": confidence,
+            "probabilities": probabilities,
+            "inputs_applied": row,
+        }
+
+    problem_type = bundle.get("problem_type", "classification")
+    numeric_cols = bundle.get("numeric_cols", [])
+    categorical_cols = bundle.get("categorical_cols", [])
+    num_imputer = bundle.get("num_imputer")
+    cat_imputer = bundle.get("cat_imputer")
+    label_encoders = bundle.get("encoders", {}).get("features", {})
+    target_encoder = bundle.get("encoders", {}).get("target")
+    target_classes = bundle.get("target_classes", [])
+    scaler = bundle.get("scaler")
 
     # Resolve true feature list: model.feature_names_in_ is the single source of truth
-    fitted_features = getattr(model, 'feature_names_in_', None)
+    fitted_features = getattr(model, "feature_names_in_", None)
     if fitted_features is not None:
         features = [str(f) for f in fitted_features]
     else:
-        features = [str(f) for f in bundle.get('features', [])]
+        features = [str(f) for f in bundle.get("features", [])]
 
     # Explicitly exclude target column if it leaked into features
-    target_col = bundle.get('target_col') or bundle.get('target_column')
+    target_col = bundle.get("target_col") or bundle.get("target_column")
     if target_col and target_col in features:
         features = [f for f in features if f != target_col]
 
@@ -165,13 +90,17 @@ def predict_with_bundle(bundle, raw_inputs):
     row = {}
     for feat in features:
         val = raw_inputs.get(feat)
-        if feat in numeric_cols or (not categorical_cols and isinstance(val, (int, float))):
+        if feat in numeric_cols or (
+            not categorical_cols and isinstance(val, (int, float))
+        ):
             try:
-                row[feat] = float(val) if val is not None and str(val).strip() != '' else 0.0
+                row[feat] = (
+                    float(val) if val is not None and str(val).strip() != "" else 0.0
+                )
             except (ValueError, TypeError):
                 row[feat] = 0.0
         else:
-            row[feat] = str(val) if val is not None and str(val).strip() != '' else ""
+            row[feat] = str(val) if val is not None and str(val).strip() != "" else ""
 
     df_row = pd.DataFrame([row], columns=features)
 
@@ -205,7 +134,6 @@ def predict_with_bundle(bundle, raw_inputs):
     else:
         X_vec = df_row
 
-
     # Predict
     raw_pred = model.predict(X_vec)[0]
 
@@ -218,32 +146,31 @@ def predict_with_bundle(bundle, raw_inputs):
                 final_pred = target_encoder.inverse_transform([int(raw_pred)])[0]
             except Exception:
                 final_pred = str(raw_pred)
-        elif target_classes and int(raw_pred) < len(target_classes):
-            final_pred = str(target_classes[int(raw_pred)])
         else:
             final_pred = str(raw_pred)
 
-        if hasattr(model, 'predict_proba'):
+        if hasattr(model, "predict_proba"):
             try:
                 probs = model.predict_proba(X_vec)[0]
-                classes = target_classes if target_classes and len(target_classes) == len(probs) else [str(c) for c in getattr(model, 'classes_', range(len(probs)))]
+                classes = (
+                    target_classes
+                    if target_classes and len(target_classes) == len(probs)
+                    else [str(c) for c in getattr(model, "classes_", range(len(probs)))]
+                )
                 for c_name, p in zip(classes, probs):
                     probabilities[str(c_name)] = round(float(p) * 100.0, 1)
                 confidence = round(float(np.max(probs)) * 100.0, 1)
             except Exception:
                 pass
 
-        if confidence is None:
-            confidence = 88.5
     else:
         final_pred = round(float(raw_pred), 4)
 
     return {
         "prediction": final_pred,
-        "raw_prediction": float(raw_pred),
+        "raw_prediction": raw_pred.item() if hasattr(raw_pred, "item") else raw_pred,
         "problem_type": problem_type,
         "confidence": confidence,
         "probabilities": probabilities,
-        "inputs_applied": {k: raw_inputs.get(k) for k in features}
+        "inputs_applied": {k: raw_inputs.get(k) for k in features},
     }
-

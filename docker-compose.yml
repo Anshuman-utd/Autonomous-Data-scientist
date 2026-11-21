@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: data_scientist_db
       POSTGRES_USER: ds_user
-      POSTGRES_PASSWORD: ds_secure_password
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for the local database}"
     ports:
       - "5432:5432"
     volumes:
@@ -41,9 +41,9 @@ services:
     restart: always
     environment:
       DEBUG: "False"
-      SECRET_KEY: "production-deploy-key-autonomous-ai-data-scientist"
+      SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in your local shell or .env}"
       ALLOWED_HOSTS: "localhost,127.0.0.1,backend,frontend"
-      DATABASE_URL: "postgres://ds_user:ds_secure_password@db:5432/data_scientist_db"
+      DATABASE_URL: "postgres://ds_user:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/data_scientist_db"
       REDIS_URL: "redis://redis:6379/1"
       CELERY_BROKER_URL: "redis://redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://redis:6379/0"
@@ -69,8 +69,8 @@ services:
     command: celery -A core worker -l info --concurrency=2
     environment:
       DEBUG: "False"
-      SECRET_KEY: "production-deploy-key-autonomous-ai-data-scientist"
-      DATABASE_URL: "postgres://ds_user:ds_secure_password@db:5432/data_scientist_db"
+      SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in your local shell or .env}"
+      DATABASE_URL: "postgres://ds_user:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/data_scientist_db"
       REDIS_URL: "redis://redis:6379/1"
       CELERY_BROKER_URL: "redis://redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://redis:6379/0"
