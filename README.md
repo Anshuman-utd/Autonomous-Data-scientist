@@ -375,12 +375,12 @@ cd Autonomous-Data-scientist
 cd backend
 
 # Create and activate a virtual environment
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate          # macOS/Linux
 # venv\Scripts\activate           # Windows
 
 # Install dependencies
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
 # Copy the example environment file and fill in your API keys
 cp .env.example .env
