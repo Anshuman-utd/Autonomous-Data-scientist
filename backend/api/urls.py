@@ -7,20 +7,22 @@ from .views import (
     DownloadModelView,
     EDAView,
     RegisterView,
-    TrainModelView,
-    UploadDatasetView,
-    UserDatasetsView,
     UserModelsView,
     EmailTokenObtainPairView,
-    DatasetDetailView,
-    DatasetTransformView,
     LivePredictView,
     ModelSchemaView,
     ExportReportView,
     ExportDeploymentView,
 )
 
+from .platform_views import UploadView, DatasetsView, DetailView, SummaryView, TransformView, TrainingView, VersionsView, VersionView, InsightsView, InsightDetailView
+
 urlpatterns = [
+    path('summary', SummaryView.as_view()),
+    path('datasets/<int:pk>/versions', VersionsView.as_view()),
+    path('datasets/<int:pk>/versions/<int:version_id>', VersionView.as_view()),
+    path('insights', InsightsView.as_view()),
+    path('insights/<int:pk>', InsightDetailView.as_view()),
     # ── Auth ────────────────────────────────────────────────────────────────
     path('register',       RegisterView.as_view(),        name='register'),
     path('login',          EmailTokenObtainPairView.as_view(),  name='token_obtain_pair'),
@@ -28,16 +30,16 @@ urlpatterns = [
 
 
     # ── Datasets ─────────────────────────────────────────────────────────────
-    path('upload',           UploadDatasetView.as_view(),    name='upload_dataset'),
-    path('datasets',         UserDatasetsView.as_view(),     name='user_datasets'),   # GET
-    path('datasets/<int:pk>', DatasetDetailView.as_view(),   name='dataset_detail'),
-    path('datasets/<int:pk>/transform', DatasetTransformView.as_view(), name='dataset_transform'),
+    path('upload',           UploadView.as_view(),    name='upload_dataset'),
+    path('datasets',         DatasetsView.as_view(),     name='user_datasets'),   # GET
+    path('datasets/<int:pk>', DetailView.as_view(),   name='dataset_detail'),
+    path('datasets/<int:pk>/transform', TransformView.as_view(), name='dataset_transform'),
     path('eda',              EDAView.as_view(),              name='eda_dataset'),
     path('download-dataset', DownloadDatasetView.as_view(),  name='download_dataset'),
 
 
     # ── Models & Inference ───────────────────────────────────────────────────
-    path('train',              TrainModelView.as_view(),       name='train_model'),
+    path('train',              TrainingView.as_view(),       name='train_model'),
     path('models',             UserModelsView.as_view(),       name='user_models'),     # GET
     path('predict',            LivePredictView.as_view(),      name='live_predict'),
     path('model-schema',       ModelSchemaView.as_view(),      name='model_schema'),

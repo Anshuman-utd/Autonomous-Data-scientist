@@ -1,116 +1,75 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
-import API_URL from '../config/api';
-import { useNavigate } from 'react-router-dom';
-
+import { createContext, useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api, clearSession, message } from "../lib/api";
 const AuthContext = createContext();
-
-export const useAuth = () => {
-    return useContext(AuthContext);
-};
-
-export const AuthProvider = ({ children }) => {
-    const [token, setToken] = useState(localStorage.getItem('access_token'));
-    const [user, setUser] = useState(() => {
-        try {
-            const saved = localStorage.getItem('user');
-            return saved ? JSON.parse(saved) : null;
-        } catch {
-            return null;
-        }
-    });
-    const navigate = useNavigate();
-
-    // ── Axios interceptors ─────────────────────────────────────────────────
-    useEffect(() => {
-        const reqInterceptor = axios.interceptors.request.use((config) => {
-            const t = localStorage.getItem('access_token');
-            if (t) {
-                config.headers['Authorization'] = `Bearer ${t}`;
-            }
-            return config;
-        });
-
-        const resInterceptor = axios.interceptors.response.use(
-            (response) => response,
-            (error) => {
-                if (error.response?.status === 401) {
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('user');
-                    setToken(null);
-                    setUser(null);
-                    delete axios.defaults.headers.common['Authorization'];
-                    navigate('/login');
-                }
-                return Promise.reject(error);
-            }
-        );
-
-        return () => {
-            axios.interceptors.request.eject(reqInterceptor);
-            axios.interceptors.response.eject(resInterceptor);
-        };
-    }, [navigate]);
-
-    useEffect(() => {
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        } else {
-            delete axios.defaults.headers.common['Authorization'];
-        }
-    }, [token]);
-
-    const login = async (email, password) => {
-        try {
-            const res = await axios.post(`${API_URL}/api/login`, { email, password });
-            const accessToken = res.data.access;
-            localStorage.setItem('access_token', accessToken);
-            
-            const userData = {
-                id: res.data.user?.id,
-                email: res.data.user?.email || email,
-                full_name: res.data.user?.full_name || '',
-            };
-            localStorage.setItem('user', JSON.stringify(userData));
-            
-            setToken(accessToken);
-            setUser(userData);
-            navigate('/');
-            return { success: true };
-        } catch (error) {
-            const detail = error.response?.data?.detail || 'Invalid email or password';
-            return { success: false, error: detail };
-        }
+// Context and hook intentionally share this module.
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuth = () => useContext(AuthContext);
+function storedUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user"));
+  } catch {
+    return null;
+  }
+}
+export function AuthProvider({ children }) {
+  const [token, setToken] = useState(() =>
+    localStorage.getItem("access_token"),
+  );
+  const [user, setUser] = useState(storedUser);
+  const navigate = useNavigate();
+  useEffect(() => {
+    const expire = () => {
+      setToken(null);
+      setUser(null);
+      navigate("/login", { replace: true });
     };
-
-    const register = async (full_name, email, password, confirm_password) => {
-        try {
-            await axios.post(`${API_URL}/api/register`, { 
-                full_name, 
-                email, 
-                password, 
-                confirm_password 
-            });
-            return await login(email, password);
-        } catch (error) {
-            return { 
-                success: false, 
-                error: error.response?.data?.error || 'Registration failed. Please check your credentials.' 
-            };
-        }
+    const refreshed = () => setToken(localStorage.getItem("access_token"));
+    const synced = () => {
+      refreshed();
+      setUser(storedUser());
     };
-
-    const logout = () => {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-        setToken(null);
-        setUser(null);
-        navigate('/login');
+    window.addEventListener("session-expired", expire);
+    window.addEventListener("session-refreshed", refreshed);
+    window.addEventListener("storage", synced);
+    return () => {
+      window.removeEventListener("session-expired", expire);
+      window.removeEventListener("session-refreshed", refreshed);
+      window.removeEventListener("storage", synced);
     };
-
-    return (
-        <AuthContext.Provider value={{ user, token, login, register, logout }}>
-            {children}
-        </AuthContext.Provider>
-    );
-};
+  }, [navigate]);
+  async function login(email, password) {
+    try {
+      const { data } = await api.post("/login", { email, password });
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setToken(data.access);
+      setUser(data.user);
+      navigate("/", { replace: true });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: message(error) };
+    }
+  }
+  async function register(full_name, email, password, confirm_password) {
+    try {
+      await api.post("/register", {
+        full_name,
+        email,
+        password,
+        confirm_password,
+      });
+      return await login(email, password);
+    } catch (error) {
+      return { success: false, error: message(error) };
+    }
+  }
+  return (
+    <AuthContext.Provider
+      value={{ token, user, login, register, logout: clearSession }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}

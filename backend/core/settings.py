@@ -25,86 +25,95 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-pgzwvm*viqriko%ptde5_r4b@@lu%3-x00-yowf#1fu+x)-k#k'
+SECRET_KEY = (
+    os.environ.get("SECRET_KEY") or "local-only-development-key-never-use-in-production"
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
+if not DEBUG and not os.environ.get("SECRET_KEY"):
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured("SECRET_KEY is required when DEBUG=False")
 
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get(
-        'ALLOWED_HOSTS',
-        'localhost,127.0.0.1,testserver,autonomous-data-scientist-9d1o.onrender.com'
-    ).split(',')
+        "ALLOWED_HOSTS",
+        "localhost,127.0.0.1,testserver,autonomous-data-scientist-9d1o.onrender.com",
+    ).split(",")
 ]
-
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'corsheaders',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'api',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "api",
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'api.auth.QueryParamOrHeaderJWTAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": "10/min",
+        "uploads": "20/hour",
+        "training": "12/hour",
+        "insights": "120/hour",
+        "chat": "60/hour",
+    },
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
 }
 
 
 from datetime import timedelta
+
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # ✅ MUST BE FIRST
-    'django.middleware.security.SecurityMiddleware',
-    'django.middleware.gzip.GZipMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",  # ✅ MUST BE FIRST
+    "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = "core.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = "core.wsgi.application"
 
 
 # Database
@@ -113,10 +122,10 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Reads DATABASE_URL from the environment (set in .env).
 # Falls back to SQLite ONLY for local development without a .env file.
 
-_DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+_DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
 DATABASES = {
-    'default': (
+    "default": (
         dj_database_url.config(
             default=_DATABASE_URL,
             conn_max_age=600,
@@ -124,8 +133,8 @@ DATABASES = {
         )
         if _DATABASE_URL
         else {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     )
 }
@@ -136,16 +145,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -153,9 +162,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -165,20 +174,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── CORS Configuration ──────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,https://autonomous-data-scientist-green.vercel.app'
-    ).split(',')
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,https://autonomous-data-scientist-green.vercel.app",
+    ).split(",")
 ]
 
 # Also allow credentials (cookies / auth headers)
@@ -186,83 +195,110 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Explicitly allow the headers & methods needed for login/signup/upload
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.environ.get("MEDIA_ROOT", os.path.join(BASE_DIR, "media"))
 
 # ── Static files (whitenoise for Render) ────────────────────────────────────
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
 
-# ── Password Hashers for Local Development Speed ────────────────────────────
-if DEBUG:
-    PASSWORD_HASHERS = [
-        'django.contrib.auth.hashers.MD5PasswordHasher',
-    ]
+# Prefer Django's strong default hasher for every new password. Retain MD5 only
+# as a legacy verifier so accounts created under the former DEBUG hasher can
+# sign in and be transparently rehashed instead of being locked out.
+from django.conf import global_settings
+
+PASSWORD_HASHERS = list(global_settings.PASSWORD_HASHERS) + [
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
 
 # ── Custom Authentication Backends ──────────────────────────────────────────
 AUTHENTICATION_BACKENDS = [
-    'api.auth.EmailBackend',
-    'django.contrib.auth.backends.ModelBackend',
+    "api.auth.EmailBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 # ── Expose CORS Headers for Model Downloads ─────────────────────────────────
 CORS_EXPOSE_HEADERS = [
-    'content-disposition',
+    "content-disposition",
 ]
 
 # ── Redis Cache & Celery Configuration ──────────────────────────────────────
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1")
 
 # Use Redis cache if REDIS_URL is provided and USE_REDIS_CACHE is explicitly enabled; fallback to LocMemCache locally
-if os.environ.get('USE_REDIS_CACHE', 'False') == 'True' and os.environ.get('REDIS_URL'):
+if os.environ.get("USE_REDIS_CACHE", "False") == "True" and os.environ.get("REDIS_URL"):
     CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': REDIS_URL,
-            'TIMEOUT': 300,
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "TIMEOUT": 300,
         }
     }
 else:
     CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'autonomous-ds-cache',
-            'TIMEOUT': 300,
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "autonomous-ds-cache",
+            "TIMEOUT": 300,
         }
     }
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'))
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'))
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+)
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 # In environments without a background Redis worker, run tasks eagerly in-process without crashing
 CELERY_TASK_ALWAYS_EAGER = os.environ.get(
-    'CELERY_ALWAYS_EAGER',
-    'False' if os.environ.get('REDIS_URL') or os.environ.get('CELERY_BROKER_URL') else 'True'
-).lower() in ('true', '1', 'yes')
+    "CELERY_ALWAYS_EAGER",
+    (
+        "False"
+        if os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
+        else "True"
+    ),
+).lower() in ("true", "1", "yes")
 
 
-
+# Bounded uploads and version snapshots; no extra infrastructure required.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_DATASET_ROWS = 100000
+MAX_DATASET_COLUMNS = 100
+MAX_DATASET_VERSIONS = 20
+MAX_VERSION_BYTES = 100 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 11 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

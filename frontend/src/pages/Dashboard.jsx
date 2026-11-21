@@ -1,462 +1,412 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import API_URL from '../config/api';
-import { useAuth } from '../context/AuthContext';
-import FileUpload from '../components/FileUpload';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { StatCard } from '../components/ui/StatCard';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Modal } from '../components/ui/Modal';
-import { 
-  Database, Activity, FolderOpen, Search, Filter, 
-  Trash2, Copy, Download, ExternalLink, HelpCircle, 
-  Sparkles, Layers, HardDrive, Cpu, ArrowRight, RefreshCw,
-  LogOut, MessageSquare
-} from 'lucide-react';
-
-export default function Dashboard() {
-  const { user, logout, token } = useAuth();
+import { useEffect, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Plus,
+  Database,
+  FlaskConical,
+  Copy,
+  Download,
+  Trash2,
+  Search,
+  FileSpreadsheet,
+  Bookmark,
+} from "lucide-react";
+import { api, message, download, number, date, score } from "../lib/api";
+import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import {
+  PageHeader,
+  Stat,
+  Badge,
+  DataTable,
+  EmptyState,
+  ErrorState,
+  ProgressIndicator,
+  Pagination,
+} from "../components/ui/Primitives";
+import UploadDialog from "../features/datasets/UploadDialog";
+const workspace = (id, tab = "overview") =>
+  `/workspace?dataset_id=${id}&tab=${tab}`;
+export default function Dashboard({ library = false }) {
   const navigate = useNavigate();
-
-  const [datasets, setDatasets] = useState([]);
-  const [models, setModels] = useState([]);
+  const [data, setData] = useState({ results: [], count: 0 });
+  const [summary, setSummary] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("-uploaded_at");
+  const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Search & Filter
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all'); // all, recent, large
-  
-  // Modals / actions state
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
-
-  const fetchDashboardData = async () => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const [datasetsRes, modelsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/datasets`, config),
-        axios.get(`${API_URL}/api/models`, config)
-      ]);
-      setDatasets(datasetsRes.data.results || []);
-      setModels(modelsRes.data.results || []);
-    } catch (err) {
-      setError("Failed to load dashboard data. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [error, setError] = useState("");
+  const [upload, setUpload] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(
+    async (signal) => {
+      setLoading(true);
+      setError("");
+      try {
+        const [datasets, stats] = await Promise.all([
+          api.get("/datasets", {
+            signal,
+            params: { page, search, ordering: sort, filter },
+          }),
+          api.get("/summary", { signal }),
+        ]);
+        setData(datasets.data);
+        setSummary(stats.data);
+      } catch (error) {
+        if (error.code !== "ERR_CANCELED") setError(message(error));
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [page, search, sort, filter],
+  );
   useEffect(() => {
-    if (!token) return;
-    fetchDashboardData();
-  }, [token]);
-
-  // Actions
-  const handleUploadSuccess = (data) => {
-    // Refresh datasets list
-    fetchDashboardData();
-  };
-
-  const handleUploadError = (err) => {
-    setError(err);
-  };
-
-  const handleDeleteClick = (e, ds) => {
-    e.stopPropagation();
-    setSelectedDataset(ds);
-    setDeleteModalOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedDataset) return;
-    setActionLoading(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => load(controller.signal), 200);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [load]);
+  async function action(fn) {
+    setBusy(true);
+    setError("");
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.delete(`${API_URL}/api/datasets/${selectedDataset.id}`, config);
-      setDeleteModalOpen(false);
-      setSelectedDataset(null);
-      fetchDashboardData();
-    } catch (err) {
-      alert("Failed to delete dataset.");
+      await fn();
+      await load();
+    } catch (error) {
+      setError(message(error));
     } finally {
-      setActionLoading(false);
+      setBusy(false);
     }
-  };
-
-  const handleDuplicate = async (e, ds) => {
-    e.stopPropagation();
-    setActionLoading(true);
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(`${API_URL}/api/datasets/${ds.id}`, { action: 'duplicate' }, config);
-      fetchDashboardData();
-    } catch (err) {
-      alert("Failed to duplicate dataset.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDownloadDataset = async (e, ds) => {
-    e.stopPropagation();
-    try {
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob'
-      };
-      const res = await axios.get(`${API_URL}/api/download-dataset?dataset_id=${ds.id}`, config);
-      const blob = new Blob([res.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', ds.name || `dataset_${ds.id}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      alert("Failed to download dataset. Please try again.");
-    }
-  };
-
-  const navigateToWorkspace = (datasetId, tab = 'overview') => {
-    navigate(`/workspace?dataset_id=${datasetId}&tab=${tab}`);
-  };
-
-  // Search & Filtering logic
-  const filteredDatasets = datasets.filter(ds => {
-    const matchesSearch = ds.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (!matchesSearch) return false;
-    
-    if (filterType === 'recent') {
-      const uploadDate = new Date(ds.uploaded_at);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      return uploadDate >= sevenDaysAgo;
-    }
-    
-    if (filterType === 'large') {
-      // Columns check as proxy for size
-      return (ds.metadata?.columns?.length || 0) > 10;
-    }
-    
-    return true;
-  });
-
-  const formatDate = (iso) => {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    });
-  };
-
-  // Stats calculation
-  const totalRowsCount = datasets.reduce((sum, ds) => sum + (ds.metadata?.eda_report?.overview?.total_rows || 0), 0);
-  const totalStorageMock = (datasets.length * 1.4).toFixed(1);
-
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-16">
-      {/* Navbar Minimal Dashboard Header */}
-      <div className="flex items-center justify-between border-b border-border pb-5">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center border border-white/10 shadow-lg shadow-primary/20">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Hilton AI</h2>
-            <p className="text-xs text-slate-500">Autonomous Data Science Engine</p>
-          </div>
-        </div>
-        
-        {/* Profile / Logout Menu */}
-        <div className="flex items-center space-x-4">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-slate-200">{user?.full_name || 'Data Scientist'}</p>
-            <p className="text-xs text-slate-500">{user?.email}</p>
-          </div>
-          <button 
-            onClick={logout}
-            className="p-2 border border-border bg-slate-950 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition flex items-center justify-center"
-            title="Log Out"
+  }
+  const columns = [
+    {
+      key: "name",
+      label: "Dataset",
+      render: (ds) => (
+        <Link
+          className="text-link inline-flex items-center gap-3 min-w-0"
+          to={workspace(ds.id)}
+        >
+          <FileSpreadsheet size={19} className="text-slate-400 shrink-0" />
+          <span className="max-w-[300px] truncate" title={ds.name}>
+            {ds.name}
+          </span>
+        </Link>
+      ),
+    },
+    {
+      key: "rows",
+      label: "Records",
+      render: (ds) => number(ds.metadata?.eda_report?.overview?.total_rows),
+    },
+    {
+      key: "columns",
+      label: "Columns",
+      render: (ds) => ds.metadata?.columns?.length ?? "—",
+    },
+    {
+      key: "version",
+      label: "Version",
+      render: (ds) => <Badge>v{ds.active_version_number || 1}</Badge>,
+    },
+    {
+      key: "uploaded_at",
+      label: "Uploaded",
+      render: (ds) => date(ds.uploaded_at),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (ds) => (
+        <div className="row flex-nowrap gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`Duplicate ${ds.name}`}
+            title="Duplicate dataset"
+            disabled={busy}
+            onClick={() =>
+              action(() =>
+                api.post(`/datasets/${ds.id}`, { action: "duplicate" }),
+              )
+            }
           >
-            <LogOut className="w-4 h-4" />
-          </button>
+            <Copy size={15} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`Download ${ds.name}`}
+            title="Download CSV"
+            disabled={busy}
+            onClick={() =>
+              action(() =>
+                download("/download-dataset", ds.name, { dataset_id: ds.id }),
+              )
+            }
+          >
+            <Download size={15} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`Delete ${ds.name}`}
+            title="Delete dataset"
+            disabled={busy}
+            onClick={() => setDeleting(ds)}
+          >
+            <Trash2 size={15} />
+          </Button>
         </div>
-      </div>
-
-      {/* Hero Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card/80 to-slate-950/20 p-8 md:p-10 shadow-premium">
-        <div className="absolute top-0 right-0 w-[40%] h-[100%] bg-gradient-to-l from-primary/5 to-transparent pointer-events-none" />
-        <div className="max-w-2xl space-y-4 relative z-10">
-          <Badge variant="info" className="px-3 py-1 font-semibold uppercase tracking-wider text-[10px]">
-            Platform Console v1.0
-          </Badge>
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Analyze, train, and deploy models <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-accent">autonomously</span>.
-          </h1>
-          <p className="text-slate-400 text-sm md:text-base leading-relaxed">
-            Upload any tabular CSV file. Our server executes automatic preprocessing, target estimation, correlation heatmaps, model comparisons, and hosts a specialized LLM agent to query results.
-          </p>
-        </div>
-      </div>
-
-      {/* Stats Board */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard 
-          label="Uploaded Datasets" 
-          value={datasets.length} 
-          icon={Database} 
-          description="Total active csv workspaces" 
-        />
-        <StatCard 
-          label="Trained Models" 
-          value={models.length} 
-          icon={Cpu} 
-          description="Ready machine learning runs" 
-        />
-        <StatCard 
-          label="Database Storage" 
-          value={`${totalStorageMock} MB`} 
-          icon={HardDrive} 
-          description="Using 1.4MB per dataset avg" 
-        />
-        <StatCard 
-          label="Total Records" 
-          value={totalRowsCount.toLocaleString()} 
-          icon={Layers} 
-          description="Rows ingested by statistical engine" 
-        />
-      </div>
-
-      {/* Upload and Dataset Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Column: Quick Upload */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="p-6">
-            <CardHeader className="mb-4">
-              <div className="flex items-center space-x-2">
-                <FolderOpen className="w-5 h-5 text-primary" />
-                <CardTitle className="text-base font-bold">Upload New Dataset</CardTitle>
-              </div>
-            </CardHeader>
-            <FileUpload 
-              onUploadSuccess={handleUploadSuccess} 
-              onUploadError={handleUploadError} 
-            />
-            {error && (
-              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-xs text-red-400 rounded-xl leading-relaxed">
-                {error}
-              </div>
-            )}
-          </Card>
-
-          {/* Quick Chat Shortcut Card */}
-          {datasets.length > 0 && (
-            <Card className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
-              <CardHeader className="mb-2">
-                <div className="flex items-center space-x-2">
-                  <MessageSquare className="w-5 h-5 text-primary animate-pulse" />
-                  <CardTitle className="text-base font-bold">Ask AI Scientist</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="text-xs text-slate-400 mb-4">
-                Chat with your active datasets using a natural language interface.
-              </CardContent>
-              <Button 
-                onClick={() => navigateToWorkspace(datasets[0].id, 'chat')} 
-                size="sm" 
-                className="w-full flex items-center justify-center"
-              >
-                Open Latest Chat <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Card>
-          )}
-        </div>
-
-        {/* Right Column: Datasets List */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* Header & Filters */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border p-4 rounded-2xl">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input 
-                type="text" 
-                placeholder="Search datasets by name..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-950 border border-border rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary transition"
-              />
-            </div>
-            
-            {/* Filter buttons */}
-            <div className="flex items-center space-x-1.5 self-end sm:self-auto">
-              <button 
-                onClick={() => setFilterType('all')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                  filterType === 'all' 
-                    ? 'border-primary/30 bg-primary/10 text-white' 
-                    : 'border-border bg-slate-950 text-slate-400 hover:text-white'
-                }`}
-              >
-                All
-              </button>
-              <button 
-                onClick={() => setFilterType('recent')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                  filterType === 'recent' 
-                    ? 'border-primary/30 bg-primary/10 text-white' 
-                    : 'border-border bg-slate-950 text-slate-400 hover:text-white'
-                }`}
-              >
-                Recent
-              </button>
-              <button 
-                onClick={() => setFilterType('large')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                  filterType === 'large' 
-                    ? 'border-primary/30 bg-primary/10 text-white' 
-                    : 'border-border bg-slate-950 text-slate-400 hover:text-white'
-                }`}
-              >
-                Complex (Cols &gt; 10)
-              </button>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 3 }).map((_, idx) => (
-                <div key={idx} className="h-28 w-full bg-card animate-pulse rounded-2xl border border-border" />
-              ))}
-            </div>
-          ) : filteredDatasets.length === 0 ? (
-            <EmptyState 
-              icon={Database}
-              title="No datasets found"
-              description={searchTerm ? "Try searching for a different keyword or adjusting filters." : "Upload your first CSV dataset in the left pane to initialize exploratory statistics."}
-              actionText={searchTerm ? "Clear Search Filters" : null}
-              onAction={searchTerm ? () => { setSearchTerm(''); setFilterType('all'); } : null}
-              className="py-16"
-            />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredDatasets.map((ds) => {
-                const rowCount = ds.metadata?.eda_report?.overview?.total_rows || 0;
-                const colCount = ds.metadata?.columns?.length || 0;
-                
-                return (
-                  <div
-                    key={ds.id}
-                    onClick={() => navigateToWorkspace(ds.id)}
-                    className="group border border-border bg-card hover:border-slate-700 rounded-2xl p-5 hover:shadow-subtle-glow transition-all duration-300 cursor-pointer flex flex-col justify-between relative"
-                  >
-                    <div className="space-y-3">
-                      {/* Card Title & Icon */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <div className="p-2.5 bg-slate-900 border border-border text-primary rounded-xl shrink-0">
-                            <Database className="w-5 h-5" />
-                          </div>
-                          <div className="overflow-hidden">
-                            <h3 className="font-bold text-white text-sm truncate group-hover:text-primary transition-colors pr-2" title={ds.name}>
-                              {ds.name}
-                            </h3>
-                            <p className="text-[10px] text-slate-500 mt-0.5">Uploaded {formatDate(ds.uploaded_at)}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Info stats details */}
-                      <div className="grid grid-cols-2 gap-3 py-1 bg-slate-950/40 rounded-xl border border-border/40 p-2.5 text-center">
-                        <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rows</p>
-                          <p className="text-sm font-bold text-slate-200 mt-0.5">
-                            {rowCount > 0 ? rowCount.toLocaleString() : 'Loading...'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Columns</p>
-                          <p className="text-sm font-bold text-slate-200 mt-0.5">{colCount}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions and status */}
-                    <div className="mt-5 pt-3 border-t border-border flex items-center justify-between text-xs">
-                      <Badge variant={rowCount > 0 ? "success" : "warning"} className="text-[9px] uppercase tracking-wider font-semibold">
-                        {rowCount > 0 ? "ready" : "analyzing"}
-                      </Badge>
-
-                      <div className="flex items-center space-x-1 relative z-25">
-                        <button
-                          onClick={(e) => handleDuplicate(e, ds)}
-                          title="Duplicate Dataset"
-                          className="p-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-900 rounded-lg transition"
-                          disabled={actionLoading}
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDownloadDataset(e, ds)}
-                          title="Download Raw File"
-                          className="p-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-900 rounded-lg transition"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteClick(e, ds)}
-                          title="Delete Dataset"
-                          className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                          disabled={actionLoading}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Delete confirmation modal */}
-      <Modal 
-        isOpen={deleteModalOpen} 
-        onClose={() => setDeleteModalOpen(false)} 
-        title="Delete Dataset"
+      ),
+    },
+  ];
+  return (
+    <div className="stack">
+      <PageHeader
+        title={library ? "Datasets" : "Overview"}
+        description={
+          library
+            ? "Your data, organized and ready to explore."
+            : "A clear view of your data and experiments."
+        }
       >
-        <div className="space-y-4">
-          <p className="text-sm text-slate-300">
-            Are you sure you want to delete <span className="font-semibold text-white">"{selectedDataset?.name}"</span>? 
-            This will permanently remove the dataset and all associated trained machine learning models from the server.
-          </p>
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-border">
-            <Button 
-              variant="secondary" 
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={actionLoading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="danger" 
-              onClick={confirmDelete}
-              loading={actionLoading}
-            >
-              Permanently Delete
-            </Button>
+        <Button onClick={() => setUpload(true)}>
+          <Plus size={17} />
+          New dataset
+        </Button>
+      </PageHeader>
+      <ErrorState error={error} retry={() => load()} />
+      {!library && (
+        <div className="stat-grid">
+          <Stat
+            label="Datasets"
+            value={summary?.datasets}
+            description="Private analysis workspaces"
+          />
+          <Stat
+            label="Model runs"
+            value={summary?.models}
+            description="Completed experiments"
+          />
+          <Stat
+            label="Total records"
+            value={summary ? number(summary.records) : null}
+            description="Across active dataset versions"
+          />
+          <Stat
+            label="Saved insights"
+            value={summary?.insights}
+            description="Connected to source versions"
+          />
+        </div>
+      )}
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{library ? "Dataset library" : "Recent datasets"}</h2>
+            <p className="muted mt-1 mb-0 text-sm">
+              Open a dataset to explore, clean, and model.
+            </p>
           </div>
+          {!library && (
+            <Link to="/datasets" className="text-link text-sm">
+              View all
+            </Link>
+          )}
+        </div>
+        <div className="row p-4 border-b border-border">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search
+              className="absolute left-3 top-3 text-slate-400"
+              size={17}
+            />
+            <input
+              aria-label="Search datasets"
+              placeholder="Search datasets…"
+              className="pl-10"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <select
+            className="w-auto max-w-full"
+            aria-label="Filter datasets"
+            value={filter}
+            onChange={(event) => {
+              setFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">All datasets</option>
+            <option value="recent">Last 7 days</option>
+            <option value="trained">With model runs</option>
+          </select>
+          <select
+            className="w-auto max-w-full"
+            aria-label="Sort datasets"
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="-uploaded_at">Newest first</option>
+            <option value="uploaded_at">Oldest first</option>
+            <option value="name">Name A–Z</option>
+            <option value="-name">Name Z–A</option>
+          </select>
+        </div>
+        {loading ? (
+          <ProgressIndicator>Loading datasets…</ProgressIndicator>
+        ) : data.results.length ? (
+          <DataTable rows={data.results} columns={columns} />
+        ) : (
+          <EmptyState
+            icon={Database}
+            title={
+              search || filter !== "all"
+                ? "No matching datasets"
+                : "A new question starts with data"
+            }
+            description={
+              search || filter !== "all"
+                ? "Try another search or filter."
+                : "Upload a CSV to see its schema, discover patterns, and start your first experiment."
+            }
+          >
+            <Button onClick={() => setUpload(true)}>
+              <Plus size={16} />
+              Upload a dataset
+            </Button>
+          </EmptyState>
+        )}
+        <Pagination
+          page={page}
+          count={data.count}
+          busy={loading}
+          onChange={setPage}
+        />
+      </section>
+      {!library && (
+        <div className="grid lg:grid-cols-[1.45fr_1fr] gap-6 min-w-0">
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Recent model runs</h2>
+              <Link to="/models" className="text-link text-sm">
+                View all
+              </Link>
+            </div>
+            {summary?.recent_models?.length ? (
+              <DataTable
+                rows={summary.recent_models}
+                columns={[
+                  {
+                    key: "model_name",
+                    label: "Model",
+                    render: (model) => (
+                      <Link
+                        className="text-link"
+                        to={workspace(model.dataset, "training")}
+                      >
+                        {model.model_name}
+                        <small className="block muted font-normal mt-1">
+                          {model.dataset_name}
+                        </small>
+                      </Link>
+                    ),
+                  },
+                  { key: "score", label: "Holdout metric", render: score },
+                  {
+                    key: "created_at",
+                    label: "Created",
+                    render: (model) => date(model.created_at),
+                  },
+                ]}
+              />
+            ) : (
+              <EmptyState
+                icon={FlaskConical}
+                title="No experiments yet"
+                description="Choose a target column in a dataset workspace to compare models."
+              />
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Saved insights</h2>
+              <Link to="/insights" className="text-link text-sm">
+                View all
+              </Link>
+            </div>
+            {summary?.recent_insights?.length ? (
+              <div className="divide-y divide-border">
+                {summary.recent_insights.map((insight) => (
+                  <Link
+                    key={insight.id}
+                    to={workspace(insight.dataset, "insights")}
+                    className="block p-5 no-underline hover:bg-slate-50"
+                  >
+                    <p className="font-medium mb-1">{insight.question}</p>
+                    <span className="muted text-sm">
+                      {insight.dataset_name} · v{insight.version_number} ·{" "}
+                      {date(insight.created_at)}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={Bookmark}
+                title="Keep the useful discoveries"
+                description="Ask a question in Insight Studio, then save the result for later."
+              />
+            )}
+          </section>
+        </div>
+      )}
+      <UploadDialog
+        open={upload}
+        onClose={() => setUpload(false)}
+        onSuccess={(result) => navigate(workspace(result.dataset_id))}
+      />
+      <Modal
+        isOpen={!!deleting}
+        onClose={() => !busy && setDeleting(null)}
+        title="Delete dataset?"
+      >
+        <p>
+          This permanently removes{" "}
+          <strong className="break-all">{deleting?.name}</strong>, its versions,
+          models, insights, and conversations.
+        </p>
+        <div className="row justify-end">
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setDeleting(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            loading={busy}
+            onClick={() =>
+              action(async () => {
+                await api.delete(`/datasets/${deleting.id}`);
+                setDeleting(null);
+              })
+            }
+          >
+            Delete dataset
+          </Button>
         </div>
       </Modal>
     </div>

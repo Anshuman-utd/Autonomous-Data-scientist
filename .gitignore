@@ -39,3 +39,7 @@ venv/
 backend/media/models/*.pkl
 backend/media/datasets/*.csv
 backend/.env.used
+
+# Generated Django assets and Python caches
+backend/staticfiles/
+__pycache__/

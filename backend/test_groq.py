@@ -1,11 +1,19 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
-from langchain_groq import ChatGroq
+"""Optional manual provider smoke test. Standard tests mock external services."""
+
 if __name__ == "__main__":
-    try:
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, groq_api_key=os.environ.get("GROQ_API_KEY"))
-        res = llm.invoke("Say hi")
-        print("Success:", res.content)
-    except Exception as e:
-        print("Error:", str(e))
+    import os
+    from dotenv import load_dotenv
+    from langchain_groq import ChatGroq
+
+    load_dotenv()
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        raise SystemExit("GROQ_API_KEY is required for this optional provider test.")
+    model = ChatGroq(
+        model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
+        temperature=0,
+        groq_api_key=key,
+        timeout=20,
+        max_retries=0,
+    )
+    print(model.invoke("Say hi").content)
