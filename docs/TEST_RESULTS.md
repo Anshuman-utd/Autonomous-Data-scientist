@@ -1,5 +1,7 @@
 # Executed validation — 2026-11-21
 
+> Historical revamp record (2026-11-21). The maintainer reports this work subsequently merged into main and deployed. Statements about actions not taken refer to that original session.
+
 All statements below refer to local checks on `codex/platform-revamp`.
 No production deployment, production migration, merge, or remote account mutation
 was performed. A separate `/tmp/autonomous-revamp-qa.sqlite3` and temporary media

@@ -1,5 +1,7 @@
 # Platform revamp audit
 
+> Historical revamp record (2026-11-21). The maintainer reports this work subsequently merged into main and deployed. Statements about actions not taken refer to that original session.
+
 Audit date: 2026-11-21. Branch: `codex/platform-revamp`.
 
 ## Confirmed baseline

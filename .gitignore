@@ -43,3 +43,18 @@ backend/.env.used
 # Generated Django assets and Python caches
 backend/staticfiles/
 __pycache__/
+
+# Additional local development artifacts
+.venv/
+.pytest_cache/
+.vite/
+coverage/
+htmlcov/
+playwright-report/
+test-results/
+.env.local
+.env.*.local
+*.sqlite3
+*.sqlite3-journal
+backend/media/
+!**/.env.example

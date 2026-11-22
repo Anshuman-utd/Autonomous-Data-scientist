@@ -1,5 +1,7 @@
 # Dependency audit — 2026-11-21
 
+> Historical revamp record (2026-11-21). The maintainer reports this work subsequently merged into main and deployed. Statements about actions not taken refer to that original session.
+
 ## Executed checks
 
 - Initial `npm audit`: installed frontend dependencies had 15 package findings.

@@ -1,5 +1,7 @@
 # Changed files
 
+> Historical revamp record (2026-11-21). The maintainer reports this work subsequently merged into main and deployed. Statements about actions not taken refer to that original session.
+
 Work is maintained on `codex/platform-revamp`; see Git history for focused commits. No production merge or deployment was performed.
 Removed frontend modules were replaced by the routed feature modules and shared primitives.
 Removed legacy training code had no remaining consumers after pipeline integration.
